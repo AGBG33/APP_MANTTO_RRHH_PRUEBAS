@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+.expo-shared/
+web-build/
+dist/
+.env*
+*.log
+*.tsbuildinfo
+.metro-health-check*
+.DS_Store
+Thumbs.db
