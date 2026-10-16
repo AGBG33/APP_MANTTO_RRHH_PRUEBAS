@@ -1,52 +1,86 @@
 // app/index.js
+
 import React, { useEffect, useRef } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Redirect } from "expo-router";
-import { useAuth } from "../src/context/AuthContext";
-import { useOffline } from "../src/offline/OfflineProvider"; // tu provider
-import { bootstrapPrefetchOrdenesSupervisor } from "../src/offline/bootstrapSync";
 
-function pickHomeByRole(rol_id) {
-  if (rol_id === 1) return "/admin";
-  if (rol_id === 2) return "/supervisor";
-  return "/tecnico";
-}
+import { useAuth } from "../src/context/AuthContext";
+import { useOffline } from "../src/offline/OfflineProvider";
+import { usePermissions } from "../src/core/permissions/usePermissions";
+import { PERMISSIONS } from "../src/core/permissions/catalog";
+import { bootstrapPrefetchOrdenesSupervisor } from "../src/offline/bootstrapSync";
 
 export default function Index() {
   const { user, loading } = useAuth();
   const { dbReady, online } = useOffline();
-  const ran = useRef(false);
+  const { can } = usePermissions();
+
+  const startedForUser = useRef(null);
+
+  const canPrefetchSupervisor = can(
+    PERMISSIONS.MANTENIMIENTO.SUPERVISOR_ACCEDER
+  );
+
+  const userKey = user?.id || user?.correo || null;
 
   useEffect(() => {
-    if (ran.current) return;
-    if (!user) return;
-    if (!dbReady) return;
+    if (!user) {
+      startedForUser.current = null;
+      return;
+    }
 
-    ran.current = true;
+    if (
+      loading ||
+      !dbReady ||
+      !online ||
+      !canPrefetchSupervisor ||
+      !userKey
+    ) {
+      return;
+    }
 
-    (async () => {
-      try {
-        if (online) {
-          const r = await bootstrapPrefetchOrdenesSupervisor();
-          console.log("[BOOTSTRAP ORDENES]", r);
-        } else {
-          console.log("[BOOTSTRAP ORDENES] sin internet");
-        }
-      } catch (e) {
-        console.log("[BOOTSTRAP ORDENES ERROR]", e?.message || e);
+    if (startedForUser.current === userKey) {
+      return;
+    }
+
+    startedForUser.current = userKey;
+
+    bootstrapPrefetchOrdenesSupervisor().catch((error) => {
+      if (startedForUser.current === userKey) {
+        startedForUser.current = null;
       }
-    })();
-  }, [user, dbReady, online]);
+
+      console.log(
+        "[BOOTSTRAP ORDENES ERROR]",
+        error?.message || error
+      );
+    });
+  }, [
+    user,
+    userKey,
+    loading,
+    dbReady,
+    online,
+    canPrefetchSupervisor,
+  ]);
 
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator />
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ActivityIndicator size="large" color="#0B1F3B" />
       </View>
     );
   }
 
-  if (!user) return <Redirect href="/(auth)/login" />;
+  if (!user) {
+    return <Redirect href="/(auth)/login" />;
+  }
 
-  return <Redirect href={pickHomeByRole(user.rol_id)} />;
+  return <Redirect href="/inicio" />;
 }

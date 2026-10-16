@@ -1,6 +1,6 @@
 // app/supervisor/index.js
 
-import React, { useCallback } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -9,11 +9,10 @@ import {
   Pressable,
   Platform,
   StatusBar,
-  BackHandler,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import Header from "../../src/components/Header";
 
 // ====== Datos del menú ======
@@ -149,30 +148,6 @@ function MenuTile({
 }
 
 export default function SupervisorHome() {
-  /*
-    Bloquea el botón físico de regresar en Android
-    solo cuando estás en el home principal del supervisor.
-
-    Esto evita que el usuario regrese al login desde /supervisor.
-    Las vistas internas siguen funcionando normal.
-  */
-  useFocusEffect(
-    useCallback(() => {
-      const onBackPress = () => {
-        console.log(
-          "[NAV] Bloqueado regreso desde Inicio Supervisor",
-        );
-        return true;
-      };
-
-      const subscription = BackHandler.addEventListener(
-        "hardwareBackPress",
-        onBackPress,
-      );
-
-      return () => subscription.remove();
-    }, []),
-  );
 
   return (
     <View style={styles.container}>

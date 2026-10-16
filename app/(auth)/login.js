@@ -25,12 +25,6 @@ const COLORS = {
   shadow: "#000000",
 };
 
-function pickHomeByRole(rol_id) {
-  if (rol_id === 1) return "/admin";
-  if (rol_id === 2) return "/supervisor";
-  return "/tecnico";
-}
-
 const BRAND = {
   customer: "Mitsubishi Electric de México",
 };
@@ -41,8 +35,10 @@ export default function LoginScreen() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (user) router.replace(pickHomeByRole(user.rol_id));
-  }, [user]);
+    if (!loading && user) {
+      router.replace("/inicio");
+    }
+  }, [user, loading]);
 
   const handleLoginSSO = async () => {
     setError("");

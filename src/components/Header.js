@@ -24,7 +24,7 @@ const COLORS = {
   iconBg: "#F4F6F8",
 };
 
-const ROOT_ROUTES = ["/admin", "/supervisor", "/tecnico"];
+const ROOT_ROUTES = ["/inicio"];
 
 export default function Header({ title }) {
   const router = useRouter();

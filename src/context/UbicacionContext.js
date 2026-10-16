@@ -1,3 +1,5 @@
+import { usePermissions } from "../core/permissions/usePermissions";
+import { PERMISSIONS } from "../core/permissions/catalog";
 // src/context/UbicacionContext.js
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
@@ -5,19 +7,14 @@ import { Alert, AppState, Linking, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "./AuthContext";
 import api from "../services/api";
-
 // ✅ Offline
 import { isOnline } from "../offline/net";
 import { outboxAdd } from "../offline/db";
-
 const UbicacionContext = createContext();
-
 const msToSapDate = (ms) => `/Date(${ms})/`;
 const SEND_EVERY_MS = 30000;
 const SAME_EPS = 0.00001;
-
 const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
 /**
  * ✅ Equipo activo (Equipment) guardado por la vista de órdenes
  * app/tecnico/ordenes/index.js debe guardar:
@@ -26,46 +23,40 @@ const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
  */
 const ACTIVE_EQUIP_KEY = (userEmail) =>
   `activeEquipment:${String(userEmail || "anon").toLowerCase().trim()}`;
-
 async function loadActiveEquipment(userEmail) {
-  try {
-    const key = ACTIVE_EQUIP_KEY(userEmail);
-    const v = await AsyncStorage.getItem(key);
-    return String(v || "").trim();
-  } catch {
-    return "";
-  }
+try {
+const key = ACTIVE_EQUIP_KEY(userEmail);
+const v = await AsyncStorage.getItem(key);
+return String(v || "").trim();
+} catch {
+return "";
 }
-
-export const UbicacionProvider = ({ children }) => {
+}
+const UbicacionActiveProvider = ({ children }) => {
   const { user } = useAuth();
-
   const [permisosOtorgados, setPermisosOtorgados] = useState(false);
   const [servicesEnabled, setServicesEnabled] = useState(true);
-
-  // Para UI / control
+// Para UI / control
   const [locationBlocked, setLocationBlocked] = useState(false);
   const [locationBlockReason, setLocationBlockReason] = useState(""); // "gps_off" | "permission_denied"
-
   const watchSubRef = useRef(null);
   const sendingRef = useRef(false);
   const lastSentAtRef = useRef(0);
   const lastCoordsRef = useRef({ lat: null, lon: null });
   const appStateRef = useRef(AppState.currentState);
   const showingAlertRef = useRef(false);
-
-  // =========================
-  // Helpers: abrir settings correctos
-  // =========================
+// =========================
+// Helpers: abrir settings correctos
+// =========================
   const openLocationServicesSettings = async () => {
     try {
       if (Platform.OS === "android") {
-        // ✅ pantalla de "Ubicación" del sistema (GPS)
+// ✅ pantalla de "Ubicación" del sistema (GPS)
         await Linking.sendIntent?.("android.settings.LOCATION_SOURCE_SETTINGS");
-        // sendIntent no siempre existe -> fallback:
+// sendIntent no siempre existe -> fallback:
         if (!Linking.sendIntent) await Linking.openSettings();
       } else {
-        // iOS: no hay pantalla directa de GPS, abrimos settings de la app
+// iOS: no hay pantalla directa de GPS, abrimos settings de la app
         await Linking.openSettings();
       }
     } catch (e) {
@@ -75,7 +66,6 @@ export const UbicacionProvider = ({ children }) => {
       } catch {}
     }
   };
-
   const openAppSettings = async () => {
     try {
       await Linking.openSettings(); // ✅ abre permisos de la app para elegir "Mientras se usa" / "Siempre"
@@ -83,11 +73,9 @@ export const UbicacionProvider = ({ children }) => {
       console.log("[GEO] openAppSettings error:", e?.message || e);
     }
   };
-
   const showBlockingAlertOnce = (title, message, actions) => {
     if (showingAlertRef.current) return;
     showingAlertRef.current = true;
-
     Alert.alert(
       title,
       message,
@@ -104,21 +92,18 @@ export const UbicacionProvider = ({ children }) => {
       { cancelable: false }
     );
   };
-
-  // =========================
-  // 1) Permisos + GPS
-  // =========================
+// =========================
+// 1) Permisos + GPS
+// =========================
   const checkPermisosYServicios = async ({ promptUser = false } = {}) => {
     try {
       const enabled = await Location.hasServicesEnabledAsync();
       setServicesEnabled(enabled);
       console.log("[GEO] servicesEnabled:", enabled);
-
       if (!enabled) {
         setPermisosOtorgados(false);
         setLocationBlocked(true);
         setLocationBlockReason("gps_off");
-
         if (promptUser) {
           showBlockingAlertOnce(
             "Activa la ubicación",
@@ -128,17 +113,14 @@ export const UbicacionProvider = ({ children }) => {
         }
         return false;
       }
-
       const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
       console.log("[GEO] getForegroundPermissionsAsync:", { status, canAskAgain });
-
       if (status !== "granted") {
-        // Si podemos pedirlo, mostramos el diálogo nativo
+// Si podemos pedirlo, mostramos el diálogo nativo
         if (canAskAgain) {
           if (promptUser) {
             const req = await Location.requestForegroundPermissionsAsync();
             console.log("[GEO] requestForegroundPermissionsAsync:", req?.status);
-
             if (req?.status === "granted") {
               setPermisosOtorgados(true);
               setLocationBlocked(false);
@@ -147,12 +129,10 @@ export const UbicacionProvider = ({ children }) => {
             }
           }
         }
-
-        // Si ya no podemos pedirlo o el usuario lo negó -> settings
+// Si ya no podemos pedirlo o el usuario lo negó -> settings
         setPermisosOtorgados(false);
         setLocationBlocked(true);
         setLocationBlockReason("permission_denied");
-
         if (promptUser) {
           showBlockingAlertOnce(
             "Permiso de ubicación requerido",
@@ -162,8 +142,7 @@ export const UbicacionProvider = ({ children }) => {
         }
         return false;
       }
-
-      // Todo OK
+// Todo OK
       setPermisosOtorgados(true);
       setLocationBlocked(false);
       setLocationBlockReason("");
@@ -173,42 +152,35 @@ export const UbicacionProvider = ({ children }) => {
       return false;
     }
   };
-
-  // ✅ al montar provider: pide permisos
+// ✅ al montar provider: pide permisos
   useEffect(() => {
     checkPermisosYServicios({ promptUser: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+// eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // ✅ cuando vuelve a foreground, re-check
+// ✅ cuando vuelve a foreground, re-check
   useEffect(() => {
     const sub = AppState.addEventListener("change", async (nextState) => {
       const prev = appStateRef.current;
       appStateRef.current = nextState;
-
       if (prev.match(/inactive|background/) && nextState === "active") {
         console.log("[GEO] Foreground -> re-check permisos/servicios");
         await checkPermisosYServicios({ promptUser: true });
       }
     });
     return () => sub?.remove?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+// eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // =========================
-  // 2) Enviar o guardar ubicación (✅ incluye EQUIPO activo)
-  // =========================
+// =========================
+// 2) Enviar o guardar ubicación (✅ incluye EQUIPO activo)
+// =========================
   const postUbicacion = async (lat, lon) => {
     const now = Date.now();
     if (now - lastSentAtRef.current < SEND_EVERY_MS) return;
     if (sendingRef.current) return;
-
     const correo = user?.correo || user?.email || user?.preferred_username || "";
     if (!correo) return;
-
-    // ✅ leer equipo activo (guardado desde la lista de órdenes)
+// ✅ leer equipo activo (guardado desde la lista de órdenes)
     const equipoActivo = await loadActiveEquipment(correo);
-
     const payload = {
       Id: "1",
       Usuario: String(correo),
@@ -217,36 +189,29 @@ export const UbicacionProvider = ({ children }) => {
       Timestamp: msToSapDate(Date.now()),
       Orden: equipoActivo || "", // ✅ AQUÍ VA EL EQUIPO
     };
-
     const request = {
       method: "POST",
       url: "/api/odata/ZCS_GEOLOZACION_SRV/GeoLocalizacionSet",
       body: payload,
     };
-
     const minuteBucket = Math.floor(Date.now() / 60000);
     const dedupeKey = `geo:${String(correo)}:${minuteBucket}`;
-
     try {
       sendingRef.current = true;
-
       const online = await isOnline();
-
       if (!online) {
         await outboxAdd({ id: makeId(), type: "POST_UBICACION", request, dedupeKey });
         lastSentAtRef.current = Date.now();
         console.log("[GEO] Offline: guardado en outbox", { dedupeKey, Orden: payload.Orden });
         return;
       }
-
       console.log("[GEO] Online: enviando ubicación...", { Orden: payload.Orden });
       const res = await api.post(request.url, request.body);
       lastSentAtRef.current = Date.now();
       console.log("[GEO] OK:", res?.status);
     } catch (err) {
       console.log("[GEO] ERROR:", err?.message || err);
-
-      // fallback outbox
+// fallback outbox
       try {
         await outboxAdd({ id: makeId(), type: "POST_UBICACION", request, dedupeKey });
         lastSentAtRef.current = Date.now();
@@ -256,19 +221,18 @@ export const UbicacionProvider = ({ children }) => {
       sendingRef.current = false;
     }
   };
-
-  // =========================
-  // 3) Watcher (solo si permisos + gps + user)
-  // =========================
+// =========================
+// 3) Watcher (solo si permisos + gps + user)
+// =========================
   useEffect(() => {
+    let cancelled = false;
     const start = async () => {
-      // limpia watcher previo
+// limpia watcher previo
       if (watchSubRef.current) {
         watchSubRef.current.remove();
         watchSubRef.current = null;
       }
-
-      // Si está bloqueado, NO iniciamos
+// Si está bloqueado, NO iniciamos
       if (!permisosOtorgados || !servicesEnabled || !user || locationBlocked) {
         console.log("[GEO] No inicia watch:", {
           permisosOtorgados,
@@ -279,11 +243,9 @@ export const UbicacionProvider = ({ children }) => {
         });
         return;
       }
-
       console.log("[GEO] Iniciando watchPositionAsync...");
-
       try {
-        watchSubRef.current = await Location.watchPositionAsync(
+        const subscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
             timeInterval: 5000,
@@ -291,77 +253,88 @@ export const UbicacionProvider = ({ children }) => {
             mayShowUserSettingsDialog: true,
           },
           async (loc) => {
-            // 🔥 Si el GPS se apaga mientras estaba corriendo, detecta y bloquea
+            if (cancelled) return;
+// 🔥 Si el GPS se apaga mientras estaba corriendo, detecta y bloquea
             const enabledNow = await Location.hasServicesEnabledAsync();
             if (!enabledNow) {
               setServicesEnabled(false);
               setLocationBlocked(true);
               setLocationBlockReason("gps_off");
-
               showBlockingAlertOnce(
                 "Activa la ubicación",
                 "Se desactivó el GPS. Actívalo para continuar enviando ubicación.",
                 [{ text: "Abrir configuración", onPress: openLocationServicesSettings }]
               );
-
-              // apaga watcher
+// apaga watcher
               if (watchSubRef.current) {
                 watchSubRef.current.remove();
                 watchSubRef.current = null;
               }
               return;
             }
-
+            if (cancelled) return;
             const lat = loc?.coords?.latitude;
             const lon = loc?.coords?.longitude;
             if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-
             const prev = lastCoordsRef.current;
             const same =
               prev.lat != null &&
               prev.lon != null &&
               Math.abs(prev.lat - lat) < SAME_EPS &&
               Math.abs(prev.lon - lon) < SAME_EPS;
-
             lastCoordsRef.current = { lat, lon };
-
             console.log("[GEO] coords:", lat, lon, same ? "(same-ish)" : "");
             await postUbicacion(lat, lon);
           }
         );
+        if (cancelled) subscription.remove();
+        else watchSubRef.current = subscription;
       } catch (e) {
         console.log("[GEO] Error iniciando watchPositionAsync:", e?.message || e);
       }
     };
-
     start();
-
     return () => {
+      cancelled = true;
       if (watchSubRef.current) {
         watchSubRef.current.remove();
         watchSubRef.current = null;
       }
     };
   }, [permisosOtorgados, servicesEnabled, user, locationBlocked, locationBlockReason]);
-
-  // Manual: forzar re-check (por si quieres botón en UI)
+// Manual: forzar re-check (por si quieres botón en UI)
   const recheckUbicacion = async () => {
     await checkPermisosYServicios({ promptUser: true });
   };
-
   return (
     <UbicacionContext.Provider
-      value={{
-        permisosOtorgados,
-        servicesEnabled,
-        locationBlocked,
-        locationBlockReason,
-        recheckUbicacion,
-      }}
-    >
-      {children}
-    </UbicacionContext.Provider>
+value={{
+permisosOtorgados,
+servicesEnabled,
+locationBlocked,
+locationBlockReason,
+recheckUbicacion,
+}}
+>
+{children}
+</UbicacionContext.Provider>
   );
 };
+
+const INACTIVE_LOCATION_VALUE = {
+  permisosOtorgados: false, servicesEnabled: true,
+  locationBlocked: false, locationBlockReason: "",
+  recheckUbicacion: async () => false,
+};
+export function UbicacionProvider({ children }) {
+  const { user } = useAuth();
+  const { loading, can } = usePermissions();
+  const enabled = !loading && can(PERMISSIONS.MANTENIMIENTO.ACCEDER);
+  if (!enabled) {
+    return <UbicacionContext.Provider value={INACTIVE_LOCATION_VALUE}>{children}</UbicacionContext.Provider>;
+  }
+  const sessionKey = String(user?.id || user?.correo || user?.email || "");
+  return <UbicacionActiveProvider key={sessionKey}>{children}</UbicacionActiveProvider>;
+}
 
 export const useUbicacion = () => useContext(UbicacionContext);

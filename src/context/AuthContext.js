@@ -1036,9 +1036,7 @@ export const AuthProvider = ({ children }) => {
 
     await scheduleRefresh();
 
-    router.replace(
-      pickHomeByRole(finalUser.rol_id)
-    );
+    router.replace("/inicio");
 
     return { ok: true };
   };

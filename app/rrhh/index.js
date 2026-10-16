@@ -1,4 +1,4 @@
-// app/tecnico/RH/index.js
+// app/rrhh/index.js
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,

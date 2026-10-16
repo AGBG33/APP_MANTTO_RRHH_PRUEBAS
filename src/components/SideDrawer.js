@@ -33,12 +33,7 @@ export default function SideDrawer() {
   const { open, closeDrawer } = useDrawer();
   const { user, logout } = useAuth();
 
-  const homeRoute =
-    user?.rol_id === 1
-      ? "/admin"
-      : user?.rol_id === 2
-      ? "/supervisor"
-      : "/tecnico";
+  const homeRoute = "/inicio";
 
   const slideX = useRef(new Animated.Value(320)).current;
 

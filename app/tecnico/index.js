@@ -1,6 +1,6 @@
 // app/tecnico/index.js
 
-import React, { useCallback, useEffect } from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -9,11 +9,10 @@ import {
   Pressable,
   Platform,
   StatusBar,
-  BackHandler,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import Header from "../../src/components/Header";
 
 import { useOffline } from "../../src/offline/OfflineProvider";
@@ -65,15 +64,6 @@ const TILES = [
     accent: "#655A7C",
     softColor: "#F1EEF5",
     onPress: () => router.push("/tecnico/rutas"),
-  },
-  {
-    key: "rh",
-    title: "Vistas RH",
-    description: "Preubas de vistas de RH",
-    icon: "people-outline",
-    accent: "#727c5a",
-    softColor: "#F1EEF5",
-    onPress: () => router.push("/tecnico/RH"),
   },
 
   /*
@@ -162,29 +152,6 @@ function MenuTile({
 
 export default function TecnicoHome() {
   const { online, dbReady } = useOffline();
-
-  /*
-    Bloquea el botón físico de regresar en Android
-    solo cuando estás en el home principal del técnico.
-
-    Esto evita que el usuario regrese al login desde /tecnico.
-    Las vistas internas siguen funcionando normal.
-  */
-  useFocusEffect(
-    useCallback(() => {
-      const onBackPress = () => {
-        console.log("[NAV] Bloqueado regreso desde Inicio Técnico");
-        return true;
-      };
-
-      const subscription = BackHandler.addEventListener(
-        "hardwareBackPress",
-        onBackPress,
-      );
-
-      return () => subscription.remove();
-    }, []),
-  );
 
   /*
     Las órdenes ya son administradas por OrdenesTecnicoProvider.
