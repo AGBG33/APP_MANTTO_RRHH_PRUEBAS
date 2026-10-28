@@ -1,133 +1,105 @@
 // src/services/rhAttendance.js
-// Servicio de marcaciones RRHH a SAP QAS a través de backend BTP.
-// El correo es OPCIONAL en la app; se envía Email: "" cuando no existe.
-// La API/ABAP debe permitir Email vacío: si lo exige, ajustar el contrato en SAP.
-// La búsqueda manual de nómina NO autoriza al usuario para producción.
+// POST AttendanceRecordSet. Mantiene el canal App y envía TypeSession PR / HO / VN.
+// Reglas de horario y modalidad se verifican antes en rhPolicies.
 import { Platform } from "react-native";
 import * as Location from "expo-location";
 import * as Application from "expo-application";
-import * as Crypto from "expo-crypto";
 import api from "./api";
+import { codigoModalidadRH, TIPOS_RH, evaluarMarcacionRH } from "./rhPolicies";
 
-const ATTENDANCE_SET = "/api/odata/ZHMC_ATTENDANCE_MONITORING_SRV/AttendanceRecordSet";
-export const RH_REGISTER_TYPES = Object.freeze({
-  entrada: "P10", comida_inicio: "P15", comida_fin: "P25", salida: "P20",
-});
-const pad2 = v => String(v).padStart(2, "0");
-
-function fechaHoraLocal(instante) {
-  return {
-    fecha: `${instante.getFullYear()}-${pad2(instante.getMonth() + 1)}-${pad2(instante.getDate())}`,
-    hora: `${pad2(instante.getHours())}:${pad2(instante.getMinutes())}:${pad2(instante.getSeconds())}`,
-  };
-}
-
-// Notación decimal SAP confirmada en pruebas de Postman (signo al final).
-function coordenadaSap(numero) {
-  const n = Number(numero);
-  if (!Number.isFinite(n)) throw Error("El GPS devolvió coordenadas inválidas.");
-  const abs = Math.abs(n).toFixed(8);
-  return n < 0 ? `${abs}-` : abs;
-}
-
-async function obtenerCoordenadasParaMarcacion() {
-  if (!(await Location.hasServicesEnabledAsync())) {
-    throw Error("Activa la ubicación (GPS) para registrar asistencia.");
-  }
-  let permisos = await Location.getForegroundPermissionsAsync();
-  if (permisos.status !== "granted") permisos = await Location.requestForegroundPermissionsAsync();
-  if (permisos.status !== "granted") {
-    throw Error("Permite la ubicación mientras utilizas la app.");
-  }
+const ENDPOINT = "/api/odata/ZHMC_ATTENDANCE_MONITORING_SRV/AttendanceRecordSet";
+const RH_QAS_BASE = "https://my-node-api-qas-01.cfapps.us10-001.hana.ondemand.com";
+export const RH_REGISTER_TYPES = TIPOS_RH;
+const pad2 = x => String(x).padStart(2, "0");
+const coord = n => {
+  const number = Number(n);
+  if (!Number.isFinite(number)) throw Error("Coordenada GPS no válida.");
+  const abs = Math.abs(number).toFixed(8);
+  return number < 0 ? `${abs}-` : abs;
+};
+async function gpsParaAsistencia() {
+  if (!(await Location.hasServicesEnabledAsync())) throw Error("Activa el GPS para registrar asistencia.");
+  let p = await Location.getForegroundPermissionsAsync();
+  if (p.status !== "granted") p = await Location.requestForegroundPermissionsAsync();
+  if (p.status !== "granted") throw Error("Autoriza ubicación mientras utilizas la app.");
   let timer;
   try {
-    const position = await Promise.race([
+    const pos = await Promise.race([
       Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
-      new Promise((_, reject) => { timer = setTimeout(() => reject(Error(
-        "El GPS tardó demasiado. Inténtalo en un lugar con mejor señal.")), 25000); }),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(Error("El GPS no respondió en 25 segundos.")), 25000); }),
     ]);
-    const latitud = position?.coords?.latitude;
-    const longitud = position?.coords?.longitude;
-    const accuracyMeters = position?.coords?.accuracy;
-    if (!Number.isFinite(latitud) || !Number.isFinite(longitud) ||
-      Math.abs(latitud) > 90 || Math.abs(longitud) > 180) {
-      throw Error("No se obtuvo una ubicación GPS válida.");
+    const { latitude, longitude, accuracy } = pos?.coords || {};
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+      throw Error("GPS sin coordenadas válidas.");
     }
-    if (Number.isFinite(accuracyMeters) && accuracyMeters > 250) {
-      throw Error(`La precisión GPS es de ${Math.round(accuracyMeters)} m. Intenta mejorar la señal.`);
-    }
-    return { latitud, longitud, accuracyMeters: Number.isFinite(accuracyMeters) ? accuracyMeters : null };
+    if (Number.isFinite(accuracy) && accuracy > 250) throw Error(`Precisión de ubicación insuficiente: ${Math.round(accuracy)} m.`);
+    return { latitude, longitude, accuracyMeters: accuracy };
   } finally { if (timer) clearTimeout(timer); }
 }
-
-// Identifica el dispositivo para QAS; NO es un mecanismo de autenticación.
 export async function obtenerIdentificadorDispositivoRH() {
-  let id = "";
   if (Platform.OS === "android") {
-    const androidId = String(Application.getAndroidId() ?? "").trim().toLowerCase();
-    if (!/^[0-9a-f]{1,16}$/.test(androidId)) {
-      throw Error("No se pudo obtener un Android ID válido.");
-    }
-    id = `A${androidId}`;
-  } else if (Platform.OS === "ios") {
-    const idfv = await Application.getIosIdForVendorAsync();
-    if (!idfv) throw Error("No se pudo obtener el identificador del iPhone.");
-    const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `ios-idfv:${idfv}`);
-    id = `I${hash.slice(0, 18)}`;
-  } else {
-    throw Error("El registro está disponible en Android e iOS.");
+    const a = String(Application.getAndroidId() ?? "").trim().toLowerCase();
+    if (!/^[0-9a-f]{1,16}$/.test(a)) throw Error("No se pudo leer Android ID.");
+    return `A${a}`;
   }
-  if (!id || id.length > 20) throw Error("Identificador de dispositivo inválido para SAP.");
-  return id;
+  if (Platform.OS === "ios") {
+    const value = (await Application.getIosIdForVendorAsync()) || "";
+    const hex = value.replace(/-/g, "").toLowerCase();
+    if (!/^[0-9a-f]{32}$/.test(hex)) throw Error("No se obtuvo IDFV del iPhone.");
+    // Identificador estable, sin agregar nuevas dependencias a Expo.
+    return `I${hex.slice(0, 19)}`;
+  }
+  throw Error("Marcaciones disponibles en Android/iOS.");
 }
 
-export async function prepararMarcacionRH({ personalNumber, fullName, email, type }) {
+export async function prepararMarcacionRH({ empleado, personalNumber, email, type, modalidad = "Presencial", registros = [] }) {
   const numero = String(personalNumber ?? "").trim();
-  const nombre = String(fullName ?? "").trim();
   const correo = String(email ?? "").trim();
   if (!/^\d{1,8}$/.test(numero)) throw Error("Número de nómina inválido.");
-  if (!nombre) throw Error("Primero consulta un empleado con nombre en SAP.");
-  // CORREO OPCIONAL: solo validar formato si alguien proporcionó uno.
-  if (correo && (correo.length > 241 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo))) {
-    throw Error("El correo opcional no tiene un formato válido.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo) || correo.length > 241) {
+    throw Error("Durante las pruebas debes ingresar un correo válido del empleado.");
   }
-  const registerType = RH_REGISTER_TYPES[type];
-  if (!registerType) throw Error("Tipo de marcación no soportado.");
-
-  const gps = await obtenerCoordenadasParaMarcacion();
+  if (!String(empleado?.fullName || "").trim()) throw Error("No se encontró el nombre del empleado en SAP.");
+  if (empleado?.email && correo.toLowerCase() !== empleado.email.trim().toLowerCase()) {
+    throw Error("El correo ingresado no coincide con EmployeeSet.");
+  }
   const instante = new Date();
-  const { fecha, hora } = fechaHoraLocal(instante);
-  const dispositivo = await obtenerIdentificadorDispositivoRH();
-  if (__DEV__) console.log("[RH DEVICE QAS]", { platform: Platform.OS, caracteres: dispositivo.length });
+  const evaluacion = evaluarMarcacionRH({ empleado, tipo: type, registros, ahora: instante, modalidad });
+  if (!evaluacion.permitido) throw Error(evaluacion.mensaje);
+  const gps = await gpsParaAsistencia();
+  const device = await obtenerIdentificadorDispositivoRH();
+  const pad = pad2;
+  const EnterDate = `${instante.getFullYear()}-${pad(instante.getMonth() + 1)}-${pad(instante.getDate())}`;
+  const EnterHour = `${pad(instante.getHours())}:${pad(instante.getMinutes())}:${pad(instante.getSeconds())}`;
   const payload = {
     PersonalNumber: numero,
-    RegisterType: registerType,
-    FullName: nombre,
-    Email: correo, // Vacío cuando SAP no proporciona correo y no se añadió opcionalmente.
-    EnterDate: fecha,
-    EnterHour: hora,
-    Chanel: "SAP", // Se conserva el valor probado en Postman.
-    Device: dispositivo,
-    Latitude: coordenadaSap(gps.latitud),
-    Longitude: coordenadaSap(gps.longitud),
+    RegisterType: TIPOS_RH[type],
+    FullName: empleado.fullName,
+    Email: correo,
+    EnterDate, EnterHour,
+    Chanel: "App",                 // Antes decía SAP. Mantener el nombre OData 'Chanel'.
+    Device: device,
+    TypeSession: codigoModalidadRH(modalidad),
+    Latitude: coord(gps.latitude),
+    Longitude: coord(gps.longitude),
     GeoStatus: "", IsLate: "", Id_log: "", StatusReq: "", Message: "",
   };
-  return { payload, gpsAccuracyMeters: gps.accuracyMeters };
+  return { payload, gpsAccuracyMeters: gps.accuracyMeters, evaluacion };
 }
 
-// No hacer reintentos automáticos: un timeout puede producir duplicados si SAP grabó antes.
 export async function enviarMarcacionRH(payload) {
-  const response = await api.post(ATTENDANCE_SET, payload, {
+  // Sin reintentos automáticos para no generar duplicados tras un timeout.
+  const response = await api.post(ENDPOINT, payload, {
+    baseURL: RH_QAS_BASE, // Evita un POST accidental a PROD por extra.API_BASE_URL_PROD.
     headers: { "Content-Type": "application/json", Accept: "application/json" }, timeout: 45000,
   });
-  if (response.status < 200 || response.status >= 300) {
-    throw Error(`SAP devolvió HTTP ${response.status} al registrar asistencia.`);
-  }
+  if (response.status < 200 || response.status >= 300) throw Error(`SAP devolvió HTTP ${response.status}.`);
   const body = response?.data?.d ?? response?.data ?? {};
   const estado = String(body?.StatusReq ?? "").trim();
   const mensaje = String(body?.Message ?? "").trim();
   if (response?.data?.error || /^(E|ERROR|FAIL|FAILED|REJECTED|RECHAZADO)$/i.test(estado)) {
-    throw Error(mensaje || "SAP rechazó la marcación.");
+    throw Error(mensaje || "SAP rechazó el registro de asistencia.");
   }
-  return { httpStatus: response.status, statusReq: estado, message: mensaje };
+  return { httpStatus: response.status, statusReq: estado, message: mensaje,
+    idLog: String(body?.Id_log ?? body?.IdLog ?? "").trim() };
 }

@@ -71,6 +71,7 @@ export default function RHHistorial() {
   const params = useLocalSearchParams();
   const personalNumber = normalizarNomina(primero(params.personalNumber));
   const raw = String(primero(params.numeroRegistro) ?? "").trim();
+  const correoRegistro = String(primero(params.correoRegistro) ?? "").trim();
   // La pantalla de RRHH conserva el número tecleado (ej. 1111111) para el GET.
   const numeroRegistro = esNomina(raw) && normalizarNomina(raw) === personalNumber
     ? raw : personalNumber;
@@ -114,11 +115,11 @@ export default function RHHistorial() {
       .catch(e => {
         if (!activo) return;
         const status = e?.response?.status;
-        const mensaje = status === 401 ? "La sesión expiró. Inicia sesión nuevamente."
-          : status === 403 ? "No tienes permiso para consultar el historial del empleado."
-          : status === 404 ? "No se encontró AttendanceHistorySet en el servidor."
-          : status >= 500 ? "SAP QAS no está disponible por el momento."
-          : e?.message || "No fue posible consultar SAP QAS.";
+        const mensaje = status === 401 ? "Tu sesión terminó. Inicia sesión nuevamente."
+          : status === 403 ? "No tienes permiso para consultar este historial."
+          : status === 404 ? "El historial no está disponible en este momento."
+          : status >= 500 ? "El servicio no está disponible. Intenta más tarde."
+          : "No pudimos consultar tus registros. Revisa tu conexión e inténtalo otra vez.";
         setError(mensaje);
       })
       .finally(() => { if (activo) setLoading(false); });
@@ -174,13 +175,13 @@ export default function RHHistorial() {
   return <SafeAreaView style={s.safe}>
     <StatusBar barStyle="dark-content" backgroundColor={C.white}/>
     <View style={s.header}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Volver a RRHH"
+      <Pressable accessibilityRole="button" accessibilityLabel="Regresar"
         onPress={() => router.back()} style={s.back}>
         <Ionicons name="arrow-back" size={23} color={C.ink}/>
       </Pressable>
       <View style={{ flex: 1 }}>
         <Text style={s.headerTitle}>Historial de asistencias</Text>
-        <Text style={s.headerSub}>Nómina {numeroRegistro || "sin seleccionar"} · SAP QAS</Text>
+        <Text style={s.headerSub}>Nómina {numeroRegistro || "—"}</Text>
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="Actualizar historial"
         onPress={() => setAplicado(prev => ({ ...prev, id: prev.id + 1 }))}
@@ -189,18 +190,13 @@ export default function RHHistorial() {
       </Pressable>
     </View>
 
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
-      <View style={s.notice}>
-        <Ionicons name="cloud-done-outline" size={20} color={C.blue}/>
-        <Text style={s.noticeText}>Los registros se consultan directamente en SAP QAS mediante AttendanceHistorySet. No se usa el historial del teléfono.</Text>
-      </View>
-
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}
+      showsVerticalScrollIndicator={false}>
       <View style={s.card}>
         <View style={s.sectionLine}>
-          <Ionicons name="options-outline" size={20} color={C.red}/>
-          <Text style={s.sectionTitle}>Filtros de consulta</Text>
+          <Ionicons name="calendar-outline" size={20} color={C.red}/>
+          <Text style={s.sectionTitle}>Selecciona un período</Text>
         </View>
-        <Text style={s.label}>Período rápido</Text>
         <View style={s.presets}>
           {PRESETS.map(item => <Pressable key={item.id} accessibilityRole="button"
             accessibilityState={{ selected: preset === item.id }}
@@ -209,77 +205,66 @@ export default function RHHistorial() {
             <Text style={[s.presetText, preset === item.id && s.presetTextActive]}>{item.label}</Text>
           </Pressable>)}
         </View>
-        <Text style={s.label}>Rango personalizado</Text>
         <View style={s.dates}>
           <SeleccionFecha label="Desde" value={desde} onPress={() => setPicker("desde")}/>
           <SeleccionFecha label="Hasta" value={hasta} onPress={() => setPicker("hasta")}/>
         </View>
-        <Boton title={loading ? "Consultando SAP…" : "Buscar asistencias"} icon="search-outline"
-          disabled={loading || !numeroRegistro} onPress={() => aplicar(desde, hasta, preset)}/>
-        <Text style={s.helper}>Consultando del {aplicado.desde} al {aplicado.hasta} (ambos incluidos).</Text>
+        <Boton title={loading ? "Buscando registros…" : "Buscar asistencias"}
+          icon="search-outline" disabled={loading || !numeroRegistro}
+          onPress={() => aplicar(desde, hasta, preset)}/>
       </View>
 
-      <View style={s.card}>
-        <Text style={s.sectionTitle}>Resumen del período</Text>
-        <View style={s.stats}>
-          <View style={s.stat}><Text style={s.statValue}>{registros.length}</Text><Text style={s.statLabel}>Movimientos</Text></View>
-          <View style={s.stat}><Text style={[s.statValue, { color: C.green }]}>{entradas}</Text><Text style={s.statLabel}>Entradas P10</Text></View>
-          <View style={s.stat}><Text style={[s.statValue, { color: C.blue }]}>{salidas}</Text><Text style={s.statLabel}>Salidas P20</Text></View>
-        </View>
-        {!!metodo && !loading && <Text style={s.helper}>Fuente: SAP QAS · {metodo === "dias_individuales" ? "Consulta por fechas individuales" : metodo === "dia" ? "Consulta por día" : "Consulta por rango"}</Text>}
-      </View>
+      {!loading && !error && <View style={s.summaryLine}>
+        <Text style={s.summaryStrong}>{registros.length} {registros.length === 1 ? "movimiento" : "movimientos"}</Text>
+        <Text style={s.summaryLight}> · {entradas} entradas · {salidas} salidas</Text>
+      </View>}
 
       {loading ? <View style={s.stateCard}>
-        <ActivityIndicator size="large" color={C.red}/>
-        <Text style={s.sectionTitle}>Consultando SAP QAS</Text>
-        <Text style={s.stateText}>Buscando las asistencias del período seleccionado…</Text>
+        <ActivityIndicator color={C.red} size="large"/>
+        <Text style={s.stateText}>Buscando tus asistencias…</Text>
       </View> : !!error ? <View style={s.stateCard}>
-        <Ionicons name="alert-circle-outline" size={35} color={C.danger}/>
-        <Text style={s.sectionTitle}>No se pudo consultar el historial</Text>
+        <Ionicons name="alert-circle-outline" size={32} color={C.danger}/>
+        <Text style={s.sectionTitle}>No pudimos cargar tu historial</Text>
         <Text style={s.stateText}>{error}</Text>
         <Boton title="Reintentar" icon="refresh-outline" outline
           onPress={() => setAplicado(prev => ({ ...prev, id: prev.id + 1 }))}/>
       </View> : registros.length === 0 ? <View style={s.stateCard}>
-        <Ionicons name="calendar-clear-outline" size={37} color={C.sub}/>
-        <Text style={s.sectionTitle}>No hay asistencias en este período</Text>
-        <Text style={s.stateText}>SAP respondió sin registros para la nómina y las fechas consultadas. Puedes seleccionar otro rango.</Text>
+        <Ionicons name="calendar-clear-outline" size={35} color={C.sub}/>
+        <Text style={s.sectionTitle}>Sin movimientos</Text>
+        <Text style={s.stateText}>No encontramos asistencias para las fechas seleccionadas.</Text>
       </View> : <>
-        <Text style={s.listHeading}>Movimientos encontrados</Text>
         {grupos.map(group => <View key={group.date} style={s.dayCard}>
           <View style={s.dayHead}>
-            <View style={s.dayIcon}><Ionicons name="calendar-outline" color={C.red} size={19}/></View>
+            <View style={s.dayIcon}><Ionicons name="calendar-outline" color={C.red} size={18}/></View>
             <View style={{ flex: 1 }}>
               <Text style={s.dayTitle}>{fechaAmigable(group.date)}</Text>
-              <Text style={s.muted}>{group.items.length} movimiento(s)</Text>
+              <Text style={s.muted}>{group.items.length} {group.items.length === 1 ? "registro" : "registros"}</Text>
             </View>
           </View>
           {group.items.map((reg, i) => <Pressable key={`${reg.id}-${i}`}
             accessibilityRole="button" onPress={() => setSelected(reg)}
             style={({ pressed }) => [s.event, pressed && s.pressed]}>
             <View style={s.eventIcon}><Ionicons name={reg.icon} size={19} color={C.red}/></View>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={s.eventTitle}>{reg.title}</Text>
-              <Text style={s.muted}>{reg.registerType || "Código no informado"} · SAP QAS</Text>
-            </View>
-            <Text style={s.eventTime}>{reg.time?.slice(0,5) || "--:--"}</Text>
+            <Text style={[s.eventTitle, { flex: 1 }]}>{reg.title}</Text>
+            <Text style={s.eventTime}>{reg.time?.slice(0, 5) || "--:--"}</Text>
             <Ionicons name="chevron-forward" size={16} color={C.sub}/>
           </Pressable>)}
         </View>)}
       </>}
-      {!!personalNumber && <Boton title="Ir a Check-in" icon="finger-print-outline" outline
-        onPress={() => router.push({ pathname: "/rrhh/asistencia", params: { personalNumber, numeroRegistro } })}/>}
-      <Text style={s.bottomNote}>Modo de pruebas QAS. El acceso por nómina manual debe restringirse en backend/SAP antes de producción.</Text>
+      {!!personalNumber && <Boton title="Ir a registrar asistencia" icon="finger-print-outline" outline
+        onPress={() => router.push({ pathname: "/rrhh/asistencia",
+          params: { personalNumber, numeroRegistro, correoRegistro } })}/>}
     </ScrollView>
 
-    {/* Android usa diálogo nativo; iOS utiliza selector dentro de modal. */}
     {picker && Platform.OS === "android" && <DateTimePicker
       value={picker === "desde" ? desde : hasta} mode="date" display="default"
-      onChange={alCambiarFecha}/>} 
-    {picker && Platform.OS === "ios" && <Modal visible transparent animationType="fade" onRequestClose={() => setPicker(null)}>
+      onChange={alCambiarFecha}/>}
+    {picker && Platform.OS === "ios" && <Modal visible transparent animationType="fade"
+      onRequestClose={() => setPicker(null)}>
       <View style={s.overlay}><View style={s.modalCard}>
-        <Text style={s.sectionTitle}>Selecciona fecha {picker === "desde" ? "inicial" : "final"}</Text>
-        <DateTimePicker value={picker === "desde" ? desde : hasta} mode="date" display="spinner"
-          locale="es-MX" onChange={alCambiarFecha}/>
+        <Text style={s.sectionTitle}>Selecciona {picker === "desde" ? "la fecha inicial" : "la fecha final"}</Text>
+        <DateTimePicker value={picker === "desde" ? desde : hasta} mode="date"
+          display="spinner" locale="es-MX" onChange={alCambiarFecha}/>
         <Boton title="Listo" icon="checkmark-outline" onPress={() => setPicker(null)}/>
       </View></View>
     </Modal>}
@@ -287,31 +272,18 @@ export default function RHHistorial() {
     <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}>
       <View style={s.overlay}><View style={s.modalCard}>
         <View style={s.modalHead}>
-          <Text style={s.sectionTitle}>Detalle del registro SAP</Text>
+          <Text style={s.sectionTitle}>Detalle de asistencia</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Cerrar detalle"
             onPress={() => setSelected(null)}>
             <Ionicons name="close" size={23} color={C.ink}/>
           </Pressable>
         </View>
-        <ScrollView style={{ maxHeight: 430 }}>
+        <View>
           <Dato label="Movimiento" value={selected?.title}/>
-          <Dato label="Código de marcación" value={selected?.registerType}/>
           <Dato label="Fecha" value={selected?.date}/>
           <Dato label="Hora" value={selected?.time}/>
-          <Dato label="Nómina" value={selected?.personalNumber || numeroRegistro}/>
-          <Dato label="Nombre" value={selected?.fullName}/>
-          <Dato label="Canal" value={selected?.channel}/>
-          <Dato label="Estatus" value={selected?.status}/>
-          <Dato label="Horario" value={selected?.schedule}/>
-          <Dato label="Zona" value={selected?.zone}/>
-          <Dato label="Centro / Oficina" value={selected?.centerOffice}/>
-          <Dato label="Retardo" value={selected?.isLate}/>
-          <Dato label="Estatus GPS" value={selected?.geoStatus}/>
-          <Dato label="Estado de solicitud" value={selected?.statusReq}/>
-          <Dato label="Mensaje SAP" value={selected?.message}/>
-          <Dato label="Identificador SAP" value={selected?.id}/>
-        </ScrollView>
-        <Text style={s.bottomNote}>Información devuelta por AttendanceHistorySet de SAP QAS.</Text>
+          <Dato label="Centro de trabajo" value={selected?.centerOffice}/>
+        </View>
         <Boton title="Cerrar" icon="close-outline" outline onPress={() => setSelected(null)}/>
       </View></View>
     </Modal>
@@ -370,4 +342,7 @@ const s = StyleSheet.create({
   detailRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, flexDirection: "row", gap: 10 },
   detailLabel: { color: C.sub, fontSize: 12, flex: 1 },
   detailValue: { color: C.ink, fontWeight: "600", fontSize: 12, textAlign: "right", flex: 1.4 },
+  summaryLine: { flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", paddingHorizontal: 3 },
+  summaryStrong: { color: C.ink, fontWeight: "800", fontSize: 14 },
+  summaryLight: { fontSize: 12, color: C.sub },
 });
