@@ -3,7 +3,7 @@
     "name": "Melmex App QAS",
     "slug": "mitsu_frontend",
     "scheme": "mitsuapp",
-    "version": "1.0.1.3",
+    "version": "beta",
     "orientation": "portrait",
     "icon": "./assets/icon_mitsu_qas.png",
     "userInterfaceStyle": "light",

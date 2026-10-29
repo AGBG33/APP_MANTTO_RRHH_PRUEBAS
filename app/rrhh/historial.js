@@ -8,7 +8,8 @@ import {
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useSapEmployee } from "../../src/context/SapEmployeeContext";
 import { cambiarDiasRH, consultarHistorialRH, fechaLocalRH } from "../../src/services/rhHistory";
 
 const C = {
@@ -17,7 +18,6 @@ const C = {
   greenBg: "#EAF7EF", blue: "#375A80", blueBg: "#ECF3FA",
   amber: "#95610C", amberBg: "#FFF7E8", danger: "#AF2634",
 };
-const primero = valor => Array.isArray(valor) ? valor[0] : valor;
 const esNomina = numero => /^\d{1,8}$/.test(String(numero ?? "").trim());
 const normalizarNomina = numero => esNomina(numero) ? String(numero).trim().padStart(8, "0") : "";
 const inicioHoy = () => {
@@ -68,13 +68,10 @@ function SeleccionFecha({ label, value, onPress }) {
 }
 
 export default function RHHistorial() {
-  const params = useLocalSearchParams();
-  const personalNumber = normalizarNomina(primero(params.personalNumber));
-  const raw = String(primero(params.numeroRegistro) ?? "").trim();
-  const correoRegistro = String(primero(params.correoRegistro) ?? "").trim();
-  // La pantalla de RRHH conserva el número tecleado (ej. 1111111) para el GET.
-  const numeroRegistro = esNomina(raw) && normalizarNomina(raw) === personalNumber
-    ? raw : personalNumber;
+  // Identidad confirmada en Microsoft y vinculada a EmployeeSet.
+  const { employee: perfilSap, loading: perfilLoading, error: perfilError } = useSapEmployee();
+  const personalNumber = normalizarNomina(perfilSap?.personalNumber);
+  const numeroRegistro = String(perfilSap?.personalNumber ?? "").trim();
 
   const [desde, setDesde] = useState(() => cambiarDiasRH(inicioHoy(), -6));
   const [hasta, setHasta] = useState(inicioHoy);
@@ -93,8 +90,12 @@ export default function RHHistorial() {
   const [selected, setSelected] = useState(null);
 
   useFocusEffect(useCallback(() => {
+    if (perfilLoading) {
+      setLoading(true);
+      return undefined;
+    }
     if (!numeroRegistro) {
-      setError("Primero consulta un empleado en la pantalla de Recursos Humanos.");
+      setError(perfilError || "No encontramos tu información laboral. Vuelve a Recursos Humanos.");
       setRegistros([]);
       setLoading(false);
       return undefined;
@@ -124,7 +125,7 @@ export default function RHHistorial() {
       })
       .finally(() => { if (activo) setLoading(false); });
     return () => { activo = false; controller.abort(); };
-  }, [numeroRegistro, aplicado]));
+  }, [numeroRegistro, aplicado, perfilLoading, perfilError]));
 
   const aplicar = (a, b, presetSeleccionado = "custom") => {
     const inicio = fechaLocalRH(a);
@@ -252,8 +253,7 @@ export default function RHHistorial() {
         </View>)}
       </>}
       {!!personalNumber && <Boton title="Ir a registrar asistencia" icon="finger-print-outline" outline
-        onPress={() => router.push({ pathname: "/rrhh/asistencia",
-          params: { personalNumber, numeroRegistro, correoRegistro } })}/>}
+        onPress={() => router.push("/rrhh/asistencia")}/>}
     </ScrollView>
 
     {picker && Platform.OS === "android" && <DateTimePicker

@@ -8,8 +8,8 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressa
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { router, useLocalSearchParams } from "expo-router";
-import { obtenerEmpleadoRH } from "../../src/services/rhEmployees";
+import { router } from "expo-router";
+import { useSapEmployee } from "../../src/context/SapEmployeeContext";
 import { prepararMarcacionRH, enviarMarcacionRH } from "../../src/services/rhAttendance";
 import { prepararJustificacionRH, enviarJustificacionRH } from "../../src/services/rhJustifications";
 import { clasificarEmpleadoRH, evaluarMarcacionRH, hoyISO, modalidadesPermitidasRH,
@@ -20,7 +20,6 @@ const C = { bg: "#F5F6F8", white: "#FFFFFF", ink: "#202733", sub: "#647082",
   greenBg: "#E9F6EE", blue: "#375A80", blueBg: "#EDF4FC", amber: "#95610C",
   amberBg: "#FFF7E8", danger: "#AF2634" };
 const PREFIX = "rh:demo:attendance:v2:"; // Conserva acuses anteriores sin perderlos.
-const first = p => Array.isArray(p) ? p[0] : p;
 const norm = p => /^\d{1,8}$/.test(String(p ?? "").trim())
   ? String(p).trim().padStart(8, "0") : "";
 const mailOK = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "")) && String(v).length <= 241;
@@ -64,11 +63,11 @@ function Pick({ title, selected, onPress, disabled }) {
 }
 
 export default function RHAsistencia() {
-  const params = useLocalSearchParams();
-  const personalNumber = norm(first(params.personalNumber));
-  const rawNumero = String(first(params.numeroRegistro) ?? "").trim();
-  const numeroRegistro = norm(rawNumero) === personalNumber ? rawNumero : personalNumber;
-  const emailParam = String(first(params.correoRegistro) ?? "").trim();
+  // No se aceptan parámetros de navegación para la identidad del empleado.
+  const { employee: perfilSap, email: correoAzure, loading: perfilLoading, error: perfilError, refresh: refreshPerfil } = useSapEmployee();
+  const personalNumber = norm(perfilSap?.personalNumber);
+  const numeroRegistro = String(perfilSap?.personalNumber ?? "").trim();
+  const correo = String(correoAzure || "").trim();
   const storageKey = `${PREFIX}${personalNumber}`;
   const modalidadKey = `rh:modalidad:q4:${personalNumber}:${hoyISO()}`;
   const [employee, setEmployee] = useState(null);
@@ -76,7 +75,6 @@ export default function RHAsistencia() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
-  const [correo] = useState(emailParam);
   const [modalidad, setModalidad] = useState("Presencial");
   // NULL significa que el personal de confianza AÚN no ha seleccionado modalidad.
   const [modalidadGuardada, setModalidadGuardada] = useState(null);
@@ -97,18 +95,25 @@ export default function RHAsistencia() {
     let activo = true;
     const cargar = async () => {
       setLoading(true); setError("");
+      if (perfilLoading) return;
+      if (!perfilSap) {
+        setEmployee(null); setRecords([]);
+        setError(perfilError || "No encontramos tu perfil. Vuelve a Recursos Humanos e inténtalo otra vez.");
+        setLoading(false); return;
+      }
       try {
-        if (!personalNumber) throw Error("Selecciona un empleado desde RRHH.");
-        const [empleado, raw, modeRaw] = await Promise.all([
-          obtenerEmpleadoRH(personalNumber), AsyncStorage.getItem(storageKey), AsyncStorage.getItem(modalidadKey),
+        if (!personalNumber) throw Error("No encontramos tu número de nómina. Comunícate con Recursos Humanos.");
+        const empleado = perfilSap;
+        const [raw, modeRaw] = await Promise.all([
+          AsyncStorage.getItem(storageKey), AsyncStorage.getItem(modalidadKey),
         ]);
         if (!activo) return;
         if (!empleado || norm(empleado.personalNumber) !== personalNumber) {
           throw Error("No pudimos verificar los datos del empleado.");
         }
-        if (!mailOK(correo)) throw Error("Regresa al inicio e ingresa tu correo electrónico.");
+        if (!mailOK(correo)) throw Error("No pudimos comprobar el correo de tu cuenta. Vuelve a iniciar sesión.");
         if (empleado.email && empleado.email.toLowerCase() !== correo.toLowerCase()) {
-          throw Error("El correo no coincide con tus datos. Regresa al inicio y revísalo.");
+          throw Error("El correo de tu cuenta no coincide con el registro de empleado.");
         }
         const parsed = raw ? JSON.parse(raw) : [];
         if (!Array.isArray(parsed)) throw Error("No se pudieron recuperar los registros anteriores. Contacta a Recursos Humanos.");
@@ -160,7 +165,7 @@ export default function RHAsistencia() {
     };
     cargar();
     return () => { activo = false; };
-  }, [personalNumber, correo, storageKey, modalidadKey, refresh]);
+  }, [personalNumber, correo, storageKey, modalidadKey, refresh, perfilSap, perfilLoading, perfilError]);
 
   useEffect(() => {
     const timer = setInterval(() => setAhora(new Date()), 15000);
@@ -387,7 +392,7 @@ export default function RHAsistencia() {
     <Ionicons name="alert-circle-outline" size={38} color={C.danger}/>
     <Text style={s.sectionTitle}>No se pudo abrir tu asistencia</Text>
     <Text style={[s.muted, { textAlign: "center" }]}>{error || "Intenta nuevamente."}</Text>
-    <Btn title="Reintentar" icon="refresh-outline" onPress={() => setRefresh(x => x + 1)}/>
+    <Btn title="Reintentar" icon="refresh-outline" onPress={() => { refreshPerfil(); setRefresh(x => x + 1); }}/>
     <Btn title="Volver al inicio" icon="arrow-back" outline onPress={() => router.replace("/rrhh")}/>
   </View></SafeAreaView>;
 
@@ -420,8 +425,7 @@ export default function RHAsistencia() {
         <Text style={s.headerSub}>Mi jornada de hoy</Text>
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="Abrir historial"
-        onPress={() => router.push({ pathname: "/rrhh/historial",
-          params: { personalNumber, numeroRegistro, correoRegistro: correo } })}>
+        onPress={() => router.push("/rrhh/historial")}>
         <Ionicons name="calendar-outline" color={C.red} size={23}/>
       </Pressable>
     </View>
@@ -588,8 +592,7 @@ export default function RHAsistencia() {
           </View>)}
         </View>}
         <Btn title="Ver historial de asistencias" icon="calendar-outline" outline
-          onPress={() => router.push({ pathname: "/rrhh/historial",
-            params: { personalNumber, numeroRegistro, correoRegistro: correo } })}/>
+          onPress={() => router.push("/rrhh/historial")}/>
       </ScrollView>
     </KeyboardAvoidingView>
 
