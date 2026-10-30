@@ -41,22 +41,39 @@ export function mapearEmpleadoRH(item) {
 
 export async function obtenerEmpleadoRH(identificador) {
   const filtro = prepararBusquedaEmpleadoRH(identificador);
+  // SAP Gateway puede comparar Email distinguiendo mayúsculas/minúsculas.
+  // No ampliamos la búsqueda a todo EmployeeSet ni permitimos tomar otro empleado.
+  const consultas = filtro.tipo === "numero"
+    ? [`PersonalNumber eq '${escapar(filtro.valor)}'`]
+    : [...new Set([filtro.valor.toUpperCase(), filtro.valor, filtro.valor.toLowerCase()])]
+        .map(email => `Email eq '${escapar(email)}'`);
+  if (filtro.tipo === "correo") {
+    // Opcional: algunos Gateway soportan funciones OData; si no, se omite el intento.
+    consultas.push(`tolower(Email) eq '${escapar(filtro.valor.toLowerCase())}'`);
+  }
   try {
-    const response = await api.get(EMPLOYEE_SET, {
-      baseURL: RH_QAS_BASE, // Garantizar QAS sin tocar el cliente global de mantenimiento.
-      params: { $filter: `${filtro.propiedad} eq '${escapar(filtro.valor)}'`, $format: "json" },
-      timeout: 45000,
-    });
-    const items = response?.data?.d?.results;
-    if (!Array.isArray(items)) throw Error("SAP devolvió un formato distinto de d.results.");
-    const match = items.find(item => {
-      if (filtro.tipo === "numero") return str(item, "PersonalNumber").padStart(8, "0") === filtro.valor;
-      const email = str(item, "Email");
-      return email && email.toLowerCase() === filtro.valor.toLowerCase();
-    });
-    // No permitimos el fallback de nómina vacía al aplicar políticas de jornada.
-    if (!match) return null;
-    return { ...mapearEmpleadoRH(match), numeroConfirmadoEnSAP: true };
+    for (let i = 0; i < consultas.length; i++) {
+      let response;
+      try {
+        response = await api.get(EMPLOYEE_SET, {
+          baseURL: RH_QAS_BASE,
+          params: { $filter: consultas[i], $format: "json" },
+          timeout: 45000,
+        });
+      } catch (e) {
+        // Un gateway sin tolower() puede devolver HTTP 400/501: no confundirlo con error de red.
+        const optional = consultas[i].startsWith("tolower(");
+        if (optional && [400, 405, 501].includes(e?.response?.status)) break;
+        throw e;
+      }
+      const items = response?.data?.d?.results;
+      if (!Array.isArray(items)) throw Error("SAP devolvió un formato distinto de d.results.");
+      const match = items.find(item => filtro.tipo === "numero"
+        ? str(item, "PersonalNumber").padStart(8, "0") === filtro.valor
+        : str(item, "Email").toLowerCase() === filtro.valor.toLowerCase());
+      if (match) return { ...mapearEmpleadoRH(match), numeroConfirmadoEnSAP: true };
+    }
+    return null;
   } catch (error) {
     const status = error?.response?.status;
     if (status === 401) throw Error("Tu sesión expiró. Inicia sesión nuevamente.");

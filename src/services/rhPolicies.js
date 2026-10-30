@@ -82,14 +82,20 @@ export function obtenerTurnoDelDia(scheduleDetail, fecha = new Date()) {
 }
 
 export function clasificarEmpleadoRH(empleado) {
-  if (String(empleado?.status ?? "").trim() !== "3") {
-    return { habilitado: false, grupo: "", razon: `Empleado no activo: ${empleado?.descriptionStatus || empleado?.status || "sin estatus"}.` };
-  }
+  const activo = String(empleado?.status ?? "").trim() === "3";
   const grupo = String(empleado?.groupPerson || "").trim().toUpperCase();
-  if (!['X', 'Y'].includes(grupo)) {
-    return { habilitado: false, grupo, razon: "SAP no devolvió GroupPerson X (confianza) o Y (sindicalizado)." };
-  }
-  return { habilitado: true, grupo, confianza: grupo === "X", sindicalizado: grupo === "Y", razon: "" };
+  const confianza = grupo === "X";
+  const sindicalizado = grupo === "Y";
+  const canal = String(empleado?.authorisedRegister || "").trim().toUpperCase();
+  const canalApp = ["APP", "AMBOS"].includes(canal);
+  const soloBtp = canal === "BTP";
+  let razon = "";
+  if (!activo) razon = `Empleado no activo: ${empleado?.descriptionStatus || empleado?.status || "sin estatus"}.`;
+  else if (!confianza && !sindicalizado) razon = "SAP no devolvió GroupPerson X o Y para este empleado.";
+  else if (soloBtp) razon = "Tu asistencia se registra mediante el monitor BTP; puedes consultar aquí tus datos e historial.";
+  else if (!canalApp) razon = "SAP no autorizó el registro de asistencia desde la aplicación. Consulta con Recursos Humanos.";
+  return { habilitado: activo && (confianza || sindicalizado) && canalApp,
+    activo, grupo, confianza, sindicalizado, canal, canalApp, soloBtp, razon };
 }
 export function modalidadesPermitidasRH(empleado) {
   const p = clasificarEmpleadoRH(empleado);
@@ -153,6 +159,7 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
 
   if (tipo === "entrada") {
     if (!turno.valido) return { permitido: false, mensaje: turno.razon };
+    if (hora >= turno.fin) return { permitido: false, mensaje: `Tu horario de labores terminó a las ${turno.textoFin}. Ya no puedes registrar entrada fuera de tu jornada.` };
     const habilita = turno.inicio - 10;
     if (hora < habilita) {
       return { permitido: false, mensaje: `La entrada se habilita a las ${horaCorta(habilita)} (10 minutos antes del turno).` };

@@ -95,11 +95,19 @@ export async function enviarMarcacionRH(payload) {
   });
   if (response.status < 200 || response.status >= 300) throw Error(`SAP devolvió HTTP ${response.status}.`);
   const body = response?.data?.d ?? response?.data ?? {};
-  const estado = String(body?.StatusReq ?? "").trim();
+  const estado = String(body?.StatusReq ?? "").trim().toUpperCase();
   const mensaje = String(body?.Message ?? "").trim();
-  if (response?.data?.error || /^(E|ERROR|FAIL|FAILED|REJECTED|RECHAZADO)$/i.test(estado)) {
-    throw Error(mensaje || "SAP rechazó el registro de asistencia.");
+  const idLog = String(body?.Id_log ?? body?.IdLog ?? "").trim();
+  // Solo confirmar éxito con estado de negocio OK, no únicamente con HTTP 2xx.
+  if (response?.data?.error || estado !== "OK") {
+    const e = Error(mensaje || `SAP no confirmó el registro (StatusReq: ${estado || "vacío"}).`);
+    e.sapRejected = !!estado && estado !== "OK";
+    e.sapStatus = estado;
+    e.sapMessage = mensaje;
+    e.httpStatus = response.status;
+    e.sapIdLog = idLog;
+    throw e;
   }
   return { httpStatus: response.status, statusReq: estado, message: mensaje,
-    idLog: String(body?.Id_log ?? body?.IdLog ?? "").trim() };
+    idLog };
 }

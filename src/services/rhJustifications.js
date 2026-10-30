@@ -48,10 +48,15 @@ export async function enviarJustificacionRH(payload) {
   const estado = String(body?.Status ?? "").trim().toUpperCase();
   const mensaje = String(body?.Message ?? "").trim();
   if (response.status < 200 || response.status >= 300 || response?.data?.error ||
-      (estado !== "" && estado !== "S")) {
-    throw Error(mensaje || "No se pudo registrar la justificación.");
+      (estado !== "S" && estado !== "OK")) {
+    const e = Error(mensaje || `SAP no confirmó la justificación (Status: ${estado || "vacío"}).`);
+    e.sapRejected = !!estado && !["S", "OK"].includes(estado);
+    e.sapStatus = estado;
+    e.sapMessage = mensaje;
+    e.httpStatus = response.status;
+    throw e;
   }
-  // HTTP 2xx por sí solo no demuestra persistencia en la tabla SAP.
+  // Status de éxito explícito en la respuesta de negocio.
   return {
     httpStatus: response.status,
     status: estado,

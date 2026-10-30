@@ -12,6 +12,7 @@ import { router } from "expo-router";
 import { useSapEmployee } from "../../src/context/SapEmployeeContext";
 import { prepararMarcacionRH, enviarMarcacionRH } from "../../src/services/rhAttendance";
 import { prepararJustificacionRH, enviarJustificacionRH } from "../../src/services/rhJustifications";
+import { consultarHistorialRH } from "../../src/services/rhHistory";
 import { clasificarEmpleadoRH, evaluarMarcacionRH, hoyISO, modalidadesPermitidasRH,
   obtenerTurnoDelDia, horaCorta, codigoModalidadRH, TIPOS_RH } from "../../src/services/rhPolicies";
 
@@ -30,6 +31,16 @@ const MAP = {
   salida: { title: "Salida", icon: "log-out-outline" },
 };
 const ORDEN = ["entrada", "comida_inicio", "comida_fin", "salida"];
+const errorDeSapRH = e => {
+  const data = e?.response?.data;
+  const raw = e?.sapMessage || data?.error?.message?.value || data?.error?.message ||
+    data?.Message || data?.message || (typeof data === "string" ? data : "") || e?.message;
+  const message = typeof raw === "string" ? raw : "";
+  const status = e?.sapStatus || data?.d?.StatusReq || data?.d?.Status || "";
+  const http = e?.httpStatus || e?.response?.status || "";
+  return `${message || "No se recibió detalle del error."}${status ? ` · Estado SAP: ${status}` : ""}${http ? ` · HTTP ${http}` : ""}`.slice(0, 550);
+};
+const rechazoConfirmadoRH = e => !!e?.sapRejected || [400, 403, 404, 409, 422].includes(e?.response?.status);
 // Conversión local sin UTC para que el calendario conserve el día seleccionado.
 const fechaParaPicker = value => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ""));
@@ -89,6 +100,7 @@ export default function RHAsistencia() {
   const [dialog, setDialog] = useState(null);
   const [motivo, setMotivo] = useState("Laboral");
   const [comentario, setComentario] = useState("");
+  const [recuperarTiempo, setRecuperarTiempo] = useState(false);
   const [ahora, setAhora] = useState(() => new Date());
 
   useEffect(() => {
@@ -176,7 +188,7 @@ export default function RHAsistencia() {
   const activos = useMemo(() => records.filter(r => r.demo !== true), [records]);
   const deHoy = useMemo(() => activos.filter(r => r.date === today), [activos, today]);
   const aceptados = useMemo(() => deHoy.filter(r => r.sapState === "accepted"), [deHoy]);
-  const pendientes = useMemo(() => deHoy.filter(r => ["sending", "uncertain"].includes(r.sapState)), [deHoy]);
+  const pendientes = useMemo(() => deHoy.filter(r => ["sending", "uncertain", "rejected"].includes(r.sapState)), [deHoy]);
   const entrada = ultimo(aceptados, "entrada");
   const inicioComida = ultimo(aceptados, "comida_inicio");
   const regresoComida = ultimo(aceptados, "comida_fin");
@@ -186,7 +198,7 @@ export default function RHAsistencia() {
   const modalidades = employee ? modalidadesPermitidasRH(employee) : ["Presencial"];
   // Cualquier POST iniciado o confirmado fija el TypeSession del día.
   // No limitarse a entrada aceptada: con un timeout también hay que bloquear cambios.
-  const huboEnvioHoy = deHoy.some(r => ["accepted", "sending", "uncertain"].includes(r.sapState) && !!TIPOS_RH[r.type]);
+  const huboEnvioHoy = deHoy.some(r => ["accepted", "sending", "uncertain", "rejected"].includes(r.sapState) && !!TIPOS_RH[r.type]);
   const modoBloqueado = huboEnvioHoy || busy;
   const modalidadLista = !!modalidadGuardada && !bloqueoModalidadSinDatos;
 
@@ -234,7 +246,7 @@ export default function RHAsistencia() {
     } catch (e) { Alert.alert("Error al guardar", e?.message || "No se pudo guardar la modalidad."); }
   };
   const abrir = tipo => {
-    if (busyRef.current) return;
+    if (busyRef.current || !policy?.habilitado) return;
     if (!modalidadLista) {
       Alert.alert("Falta seleccionar modalidad", "Guarda primero la modalidad antes de registrar la entrada.");
       setExtraOpen(true);
@@ -247,7 +259,7 @@ export default function RHAsistencia() {
         : resultado.mensaje;
       Alert.alert("Registro no disponible", mensaje); return;
     }
-    setMotivo("Laboral"); setComentario("");
+    setMotivo("Laboral"); setComentario(""); setRecuperarTiempo(false);
     setDialog({ tipo, aviso: resultado.aviso, late: !!resultado.retardo,
       early: !!resultado.salidaAnticipada });
   };
@@ -279,7 +291,7 @@ export default function RHAsistencia() {
         return;
       }
       const { payload, gpsAccuracyMeters, evaluacion } = await prepararMarcacionRH({
-        empleado: employee, personalNumber: numeroRegistro, email: correo,
+        empleado: employee, personalNumber: numeroRegistro, email: employee.email || correo,
         type: tipo, modalidad: modalidadGuardada, registros: activos,
       });
       // GPS puede tardar: si el evento cambió de normal a retardo, no enviar incompleto.
@@ -290,15 +302,17 @@ export default function RHAsistencia() {
       }
       pendiente = {
         id: `${Date.now()}-${tipo}-${Math.random().toString(36).slice(2,7)}`,
-        personalNumber, numeroRegistro, email: correo, type: tipo,
-        date: payload.EnterDate, time: payload.EnterHour.slice(0,5),
+        personalNumber, numeroRegistro, email: employee.email || correo, type: tipo,
+        date: payload.EnterDate, time: payload.EnterHour.slice(0,5), registerHour: payload.EnterHour,
         registerType: TIPOS_RH[tipo], modality: modalidadGuardada,
         typeSession: payload.TypeSession, gpsAccuracyMeters,
         createdAt: new Date().toISOString(), demo: false, sapState: "sending",
         late: !!evaluacion.retardo, early: !!evaluacion.salidaAnticipada,
         needsJustification: requiereMotivo,
         justificationState: requiereMotivo ? "pending" : null,
-        ...(requiereMotivo ? { reason: motivo, comment: comentario.trim() } : {}),
+        // Este valor es local y NO forma parte de ningún JSON enviado a SAP.
+        ...(requiereMotivo ? { reason: motivo, comment: comentario.trim(), recuperarTiempo } : {}),
+        payload, // copia exacta para reintento MANUAL seguro tras verificar en SAP.
       };
       guardados = [...records, pendiente];
       await persistir(guardados); // Guardar acuse ANTES del primer POST.
@@ -307,7 +321,8 @@ export default function RHAsistencia() {
       asistenciaAceptada = true;
       guardados = guardados.map(x => x.id === pendiente.id
         ? { ...x, sapState: "accepted", httpStatus: respuesta.httpStatus,
-            sapMessage: respuesta.message, attendanceIdLog: respuesta.idLog || "" } : x);
+            sapMessage: respuesta.message, sapStatusReq: respuesta.statusReq,
+            attendanceIdLog: respuesta.idLog || "", payload: null, errorDetail: "" } : x);
       try { await persistir(guardados); }
       catch (_) {
         setRecords(guardados);
@@ -317,7 +332,7 @@ export default function RHAsistencia() {
       }
       if (!requiereMotivo) {
         setDialog(null);
-        Alert.alert("Registro enviado", "Tu movimiento fue recibido. Puedes continuar con tu jornada.");
+        Alert.alert("Registro confirmado por SAP", `${respuesta.message || "SAP confirmó el registro."}\nEstado: ${respuesta.statusReq}${respuesta.idLog ? `\nFolio: ${respuesta.idLog}` : ""}`);
         return;
       }
 
@@ -329,24 +344,26 @@ export default function RHAsistencia() {
         motivo, comentario: comentario.trim(), idLog: "",
       });
       guardados = guardados.map(x => x.id === pendiente.id
-        ? { ...x, justificationState: "sending" } : x);
+        ? { ...x, justificationState: "sending", justificationPayload: justificacion } : x);
       try {
         await persistir(guardados); // No hacer POST si no se puede persistir este estado.
         const respJust = await enviarJustificacionRH(justificacion);
         guardados = guardados.map(x => x.id === pendiente.id
           ? { ...x, justificationState: "accepted", justificationIdLog: respJust.idLog,
-              justificationMessage: respJust.message } : x);
+              justificationStatus: respJust.status, justificationMessage: respJust.message,
+              justificationError: "", justificationPayload: null } : x);
         await persistir(guardados);
         setDialog(null);
-        Alert.alert("Registro enviado", "Tu marcación y su justificación fueron recibidas.");
+        Alert.alert("Registros confirmados por SAP", `Marcación: ${respuesta.message || "Registro exitoso."}${respuesta.idLog ? `\nFolio asistencia: ${respuesta.idLog}` : ""}\nJustificación: ${respJust.message || "Recibida."}${respJust.idLog ? `\nFolio incidencia: ${respJust.idLog}` : ""}`);
       } catch (justError) {
         // Un timeout no indica si ABAP guardó la justificación: no reintentar automáticamente.
         guardados = guardados.map(x => x.id === pendiente.id
-          ? { ...x, justificationState: "uncertain" } : x);
+          ? { ...x, justificationState: rechazoConfirmadoRH(justError) ? "rejected" : "uncertain",
+              justificationError: errorDeSapRH(justError), justificationStatus: justError?.sapStatus || "" } : x);
         try { await persistir(guardados); } catch (_) { setRecords(guardados); }
         setDialog(null);
-        Alert.alert("Justificación por revisar",
-          "Tu marcación fue recibida, pero no pudimos confirmar la justificación. No repitas la marcación ni la justificación; contacta a Recursos Humanos.");
+        Alert.alert("Justificación no confirmada",
+          `La asistencia sí fue confirmada por SAP, pero la justificación no.\n${errorDeSapRH(justError)}\n${rechazoConfirmadoRH(justError) ? "Puedes reintentar SOLO la justificación desde su detalle." : "El resultado es incierto; verifica primero con Recursos Humanos para evitar duplicados."}`);
       }
     } catch (e) {
       if (asistenciaAceptada) {
@@ -354,10 +371,14 @@ export default function RHAsistencia() {
         setDialog(null);
         Alert.alert("Registro por revisar", "Tu marcación fue recibida. Consulta con Recursos Humanos para completar la justificación.");
       } else if (envioIniciado && pendiente) {
-        const sinConfirmar = guardados.map(x => x.id === pendiente.id ? { ...x, sapState: "uncertain" } : x);
+        const detalle = errorDeSapRH(e);
+        const sinConfirmar = guardados.map(x => x.id === pendiente.id ? {
+          ...x, sapState: rechazoConfirmadoRH(e) ? "rejected" : "uncertain",
+          errorDetail: detalle, sapStatusReq: e?.sapStatus || "", httpStatus: e?.httpStatus || e?.response?.status || null
+        } : x);
         try { await persistir(sinConfirmar); } catch (_) { setRecords(sinConfirmar); }
         setDialog(null);
-        Alert.alert("Registro pendiente", "No pudimos confirmar el resultado. Para evitar duplicados, no lo envíes nuevamente. Comunícate con Recursos Humanos.");
+        Alert.alert("No se confirmó la marcación", `${detalle}\nConsulta las opciones de revisión para verificar en SAP y, si no existe, solicitar un reintento manual.`);
       } else {
         const detalle = /GPS|ubicación|permiso|hora|comida|horario|modalidad|viaje|justificación/i.test(e?.message || "")
           ? e.message : "Verifica tu conexión e inténtalo nuevamente.";
@@ -365,6 +386,106 @@ export default function RHAsistencia() {
       }
     } finally { busyRef.current = false; setBusy(false); }
   };
+  // Consulta histórica antes de habilitar reintentos; jamás se reenvía automáticamente.
+  const verificarYReintentar = async r => {
+    if (busyRef.current || !["sending", "uncertain", "rejected"].includes(r.sapState)) return;
+    busyRef.current = true; setBusy(true);
+    try {
+      const { registros: history } = await consultarHistorialRH({
+        personalNumber: numeroRegistro, desde: r.date, hasta: r.date,
+      });
+      const existente = history.find(h => h.registerType === r.registerType && h.date === r.date);
+      if (existente) {
+        const actual = records.map(x => x.id === r.id ? { ...x, sapState: "accepted",
+          sapMessage: existente.message || "Registro encontrado en historial SAP.",
+          sapStatusReq: existente.statusReq || "OK", attendanceIdLog: existente.id || "",
+          errorDetail: "", payload: null } : x);
+        await persistir(actual);
+        Alert.alert("Registro encontrado", "SAP ya tiene este movimiento; NO se volvió a enviar. Si necesitaba justificación, revisa su estado con Recursos Humanos.");
+        return;
+      }
+      if (!r.payload || !r.payload.EnterDate || !r.payload.EnterHour) {
+        Alert.alert("Se requiere revisión", "SAP no devolvió el registro, pero este comprobante antiguo no conserva la solicitud original. No se recreará con otra hora. Contacta a Recursos Humanos.");
+        return;
+      }
+      if (r.sapState !== "rejected" && Date.now() - Date.parse(r.createdAt || "") < 120000) {
+        Alert.alert("Espera para verificar", "El resultado de la petición es incierto. Espera al menos dos minutos para dar tiempo a SAP a actualizar el historial.");
+        return;
+      }
+      Alert.alert("SAP no mostró el movimiento",
+        `No aparece ${r.registerType} el ${r.date} en el historial consultado. Esto no garantiza que SAP no lo haya recibido.\nError anterior: ${r.errorDetail || "sin detalle"}\n\n¿Deseas reenviar MANUALMENTE el mismo registro (misma fecha y hora)?`,
+        [{ text: "Cancelar", style: "cancel" },
+          { text: "Reenviar", onPress: () => reenviarMarcacion(r) }]);
+    } catch (e) {
+      Alert.alert("No se pudo verificar SAP", `${errorDeSapRH(e)}\nNo se enviará de nuevo hasta poder consultar el historial.`);
+    } finally { busyRef.current = false; setBusy(false); }
+  };
+
+  const reenviarMarcacion = async r => {
+    if (busyRef.current || !r.payload) return;
+    busyRef.current = true; setBusy(true);
+    let actuales = records;
+    try {
+      actuales = actuales.map(x => x.id === r.id ? { ...x, sapState: "sending", errorDetail: "" } : x);
+      await persistir(actuales);
+      const out = await enviarMarcacionRH(r.payload);
+      actuales = actuales.map(x => x.id === r.id ? {
+        ...x, sapState: "accepted", sapStatusReq: out.statusReq, sapMessage: out.message,
+        attendanceIdLog: out.idLog, payload: null, errorDetail: "",
+      } : x);
+      await persistir(actuales);
+      Alert.alert("Marcación confirmada por SAP", `${out.message || "Registro exitoso."}${out.idLog ? `\nFolio: ${out.idLog}` : ""}${r.needsJustification ? "\nTu justificación aún debe verificarse por separado." : ""}`);
+    } catch (e) {
+      actuales = actuales.map(x => x.id === r.id ? { ...x,
+        sapState: rechazoConfirmadoRH(e) ? "rejected" : "uncertain", errorDetail: errorDeSapRH(e),
+        sapStatusReq: e?.sapStatus || "", httpStatus: e?.httpStatus || e?.response?.status || null,
+      } : x);
+      try { await persistir(actuales); } catch (_) { setRecords(actuales); }
+      Alert.alert("No se confirmó el reenvío", `${errorDeSapRH(e)}\nNo vuelvas a reenviar sin verificar el historial SAP.`);
+    } finally { busyRef.current = false; setBusy(false); }
+  };
+
+  const reintentarJustificacion = r => {
+    if (busyRef.current || !["pending", "rejected"].includes(r.justificationState)) return;
+    // Para movimientos del pasado que no guardaron los segundos originales, no inventar la hora.
+    const horaOriginal = r.justificationPayload?.RegisterHourLate || r.registerHour || r.payload?.EnterHour;
+    if (!horaOriginal) {
+      Alert.alert("Revisión necesaria", "Falta la hora exacta del movimiento original. Pide a Recursos Humanos verificar su justificación.");
+      return;
+    }
+    const confirmar = async () => {
+      if (busyRef.current) return;
+      busyRef.current = true; setBusy(true);
+      let actual = records;
+      try {
+        const payloadJust = r.justificationPayload || prepararJustificacionRH({
+          personalNumber: r.numeroRegistro || numeroRegistro, enterDate: r.date,
+          enterHour: horaOriginal, registerType: r.registerType,
+          motivo: r.reason, comentario: r.comment, idLog: "",
+        });
+        actual = actual.map(x => x.id === r.id ? {
+          ...x, justificationState: "sending", justificationPayload: payloadJust,
+        } : x);
+        await persistir(actual);
+        const out = await enviarJustificacionRH(payloadJust);
+        actual = actual.map(x => x.id === r.id ? { ...x, justificationState: "accepted",
+          justificationStatus: out.status, justificationMessage: out.message,
+          justificationIdLog: out.idLog, justificationPayload: null, justificationError: "" } : x);
+        await persistir(actual);
+        Alert.alert("Justificación confirmada", `${out.message || "Registro exitoso."}${out.idLog ? `\nFolio: ${out.idLog}` : ""}`);
+      } catch (e) {
+        actual = actual.map(x => x.id === r.id ? { ...x,
+          justificationState: rechazoConfirmadoRH(e) ? "rejected" : "uncertain",
+          justificationError: errorDeSapRH(e) } : x);
+        try { await persistir(actual); } catch (_) { setRecords(actual); }
+        Alert.alert("No se confirmó la justificación", errorDeSapRH(e));
+      } finally { busyRef.current = false; setBusy(false); }
+    };
+    Alert.alert(r.justificationState === "pending" ? "Enviar justificación pendiente" : "Reintentar justificación",
+      `Solo se enviará la justificación, nunca la marcación. ${r.justificationError ? `Error anterior: ${r.justificationError}` : ""} ¿Continuar?`,
+      [{ text: "Cancelar", style: "cancel" }, { text: "Enviar", onPress: confirmar }]);
+  };
+
   const resolverPendiente = (r, existe) => Alert.alert("Confirmar revisión",
     `Nómina ${r.numeroRegistro || numeroRegistro}\nFecha ${r.date}\nHora ${r.time}\nMovimiento ${MAP[r.type]?.title || "Asistencia"}\n\nConfirma con Recursos Humanos que el registro ${existe ? "sí aparece" : "no aparece"} en el historial antes de continuar.`,
     [{ text: "Cancelar", style: "cancel" }, { text: "Confirmar", onPress: async () => {
@@ -375,7 +496,7 @@ export default function RHAsistencia() {
         const actual = raw ? JSON.parse(raw) : [];
         if (!Array.isArray(actual)) throw Error("Acuses inválidos.");
         const item = actual.find(x => x.id === r.id);
-        if (!item || !["sending", "uncertain"].includes(item.sapState)) throw Error("El estado del acuse cambió.");
+        if (!item || !["sending", "uncertain", "rejected"].includes(item.sapState)) throw Error("El estado del acuse cambió.");
         await persistir(actual.map(x => x.id === r.id ? { ...x,
           sapState: existe ? "accepted" : "not_recorded_sap", manuallyReviewed: true,
           reviewedAt: new Date().toISOString() } : x));
@@ -396,6 +517,14 @@ export default function RHAsistencia() {
     <Btn title="Volver al inicio" icon="arrow-back" outline onPress={() => router.replace("/rrhh")}/>
   </View></SafeAreaView>;
 
+  if (!policy?.habilitado) return <SafeAreaView style={s.safe}><View style={s.center}>
+    <Ionicons name="information-circle-outline" size={38} color={C.blue}/>
+    <Text style={s.sectionTitle}>Registro por otro canal</Text>
+    <Text style={[s.muted, { textAlign: "center" }]}>{policy?.razon || "No tienes habilitado el registro por aplicación."}</Text>
+    <Btn title="Ver historial" icon="calendar-outline" onPress={() => router.push("/rrhh/historial")}/>
+    <Btn title="Volver a mis datos" icon="arrow-back" outline onPress={() => router.replace("/rrhh")}/>
+  </View></SafeAreaView>;
+
   const comidaCerrada = policy?.confianza && ahora.getHours() >= 14;
   const jornada = salida ? "Jornada finalizada" : pendientes.length ? "Registro pendiente de revisión"
     : !entrada ? "Aún no has registrado tu entrada"
@@ -412,6 +541,8 @@ export default function RHAsistencia() {
     ? "No podemos habilitar este registro. Comunícate con Recursos Humanos."
     : resultadoPrincipal?.mensaje;
   const faltaModalidad = policy?.confianza && !modalidadLista;
+  const salidaAnticipadaAhora = !!revisar("salida")?.salidaAnticipada;
+  const etiquetaSalida = salidaAnticipadaAhora ? "Registrar salida anticipada" : "Registrar salida";
 
   return <SafeAreaView style={s.safe}>
     <StatusBar barStyle="dark-content" backgroundColor={C.white}/>
@@ -471,17 +602,27 @@ export default function RHAsistencia() {
             <Ionicons name="alert-circle-outline" size={21} color={C.amber}/>
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={s.sectionTitle}>Justificación por confirmar</Text>
-              <Text style={s.muted}>Tu marcación fue recibida. Consulta con Recursos Humanos para verificar su justificación. No vuelvas a enviarla.</Text>
+              <Text style={s.muted}>Tu marcación sí fue recibida; la justificación requiere revisión por separado.</Text>
             </View>
           </View>
+          {justificacionesSinConfirmar.map(r => <View key={r.id} style={{ gap: 9 }}>
+            <Text style={s.muted}>{MAP[r.type]?.title || "Marcación"} · {r.time}</Text>
+            {!!r.justificationError && <Text style={s.warning}>Error: {r.justificationError}</Text>}
+            {["rejected", "pending"].includes(r.justificationState) &&
+              <Btn title={r.justificationState === "pending" ? "Enviar justificación" : "Reintentar solo la justificación"} icon="refresh-outline" outline
+                disabled={busy} onPress={() => reintentarJustificacion(r)}/>}
+            {!["rejected", "pending"].includes(r.justificationState) && <Text style={s.note}>
+              No repitas la justificación con resultado incierto sin validarla con Recursos Humanos.
+            </Text>}
+          </View>)}
         </View>}
 
         {!!pendientes.length && <View style={s.card}>
           <View style={s.reviewHead}>
             <Ionicons name="alert-circle-outline" size={21} color={C.amber}/>
             <View style={{ flex: 1, gap: 4 }}>
-              <Text style={s.sectionTitle}>Tienes un registro por revisar</Text>
-              <Text style={s.muted}>No repitas la marcación. Contacta a Recursos Humanos.</Text>
+              <Text style={s.sectionTitle}>Tienes un registro sin confirmar</Text>
+              <Text style={s.muted}>Puedes consultar SAP antes de decidir si es necesario volver a enviarlo. No se reenvía automáticamente.</Text>
             </View>
           </View>
           <Pressable accessibilityRole="button" onPress={() => setRevisionOpen(x => !x)}
@@ -491,7 +632,10 @@ export default function RHAsistencia() {
           </Pressable>
           {revisionOpen && pendientes.map(r => <View key={r.id} style={{ gap: 9 }}>
             <Text style={s.muted}>{MAP[r.type]?.title || "Marcación"} · {r.time}</Text>
-            <Text style={s.note}>Estas opciones solo deben utilizarse después de verificar el resultado con Recursos Humanos.</Text>
+            {!!r.errorDetail && <Text style={s.warning}>Error: {r.errorDetail}</Text>}
+            <Btn title="Verificar en SAP y evaluar reintento" icon="refresh-outline"
+              disabled={busy} onPress={() => verificarYReintentar(r)}/>
+            <Text style={s.note}>Si SAP ya guardó el movimiento, no se reenviará. Los botones siguientes son para conciliación manual con Recursos Humanos.</Text>
             <Btn title="Se confirmó el registro" icon="checkmark-circle-outline"
               disabled={busy} onPress={() => resolverPendiente(r, true)}/>
             <Btn title="Se confirmó que no existe" icon="alert-circle-outline" outline danger
@@ -551,13 +695,13 @@ export default function RHAsistencia() {
           <CardTitle title={policy?.confianza ? "2. Registrar movimiento" : "Registrar movimiento"}
             icon="finger-print-outline"/>
           {!policy?.habilitado && <Text style={s.warning}>
-            Tu asistencia no está habilitada. Contacta a Recursos Humanos.
+            {policy?.razon || "Tu asistencia no está habilitada desde la aplicación."}
           </Text>}
           {faltaModalidad && <Text style={s.note}>Primero confirma tu modalidad de trabajo.</Text>}
           {principal && <>
             <Btn title={principal === "entrada" ? "Registrar entrada" :
                 principal === "comida_inicio" ? "Iniciar comida" :
-                principal === "comida_fin" ? "Regresar de comida" : "Registrar salida"}
+                principal === "comida_fin" ? "Regresar de comida" : etiquetaSalida}
               icon={MAP[principal].icon} onPress={() => abrir(principal)}
               disabled={!modalidadLista || !resultadoPrincipal?.permitido || busy || !!pendientes.length}/>
             {!!resultadoPrincipal && !resultadoPrincipal.permitido && modalidadLista &&
@@ -568,7 +712,7 @@ export default function RHAsistencia() {
           </>}
           {secundaria && <Pressable accessibilityRole="button" disabled={busy || !modalidadLista || !!pendientes.length}
             onPress={() => abrir(secundaria)} style={[s.exitLink, (busy || !modalidadLista || !!pendientes.length) && s.disabled]}>
-            <Text style={s.expandLabel}>Registrar salida</Text>
+            <Text style={s.expandLabel}>{etiquetaSalida}</Text>
             <Ionicons name="arrow-forward" size={16} color={C.blue}/>
           </Pressable>}
           {salida && <Text style={s.success}>Completaste tus registros de hoy.</Text>}
@@ -583,10 +727,20 @@ export default function RHAsistencia() {
             <Ionicons name={MAP[r.type]?.icon || "time-outline"} size={19} color={C.red}/>
             <View style={{ flex: 1 }}>
               <Text style={s.recordTitle}>{MAP[r.type]?.title || "Marcación"}</Text>
-              <Text style={s.muted}>{r.sapState === "accepted" ? "Solicitud recibida" :
-                r.sapState === "not_recorded_sap" ? "No registrado" : "Pendiente de revisión"}
+              <Text style={s.muted}>{r.sapState === "accepted" ? "Confirmado por SAP" :
+                r.sapState === "not_recorded_sap" ? "No registrado" :
+                r.sapState === "rejected" ? "SAP rechazó la solicitud" : "Pendiente de verificación"}
                 {r.sapState === "accepted" && r.needsJustification &&
-                  (r.justificationState === "accepted" ? " · Justificación recibida" : " · Justificación por revisar")}</Text>
+                  (r.justificationState === "accepted" ? " · Justificación confirmada" : " · Justificación por revisar")}</Text>
+              {r.sapStatusReq ? <Text style={s.note}>Estado: {r.sapStatusReq}</Text> : null}
+              {!!r.attendanceIdLog && <Text style={s.note}>Folio SAP: {r.attendanceIdLog}</Text>}
+              {!!r.sapMessage && <Text style={s.note}>{r.sapMessage}</Text>}
+              {!!r.errorDetail && <Text style={s.warning}>{r.errorDetail}</Text>}
+              {!!r.justificationStatus && <Text style={s.note}>Estado justificación: {r.justificationStatus}</Text>}
+              {!!r.justificationMessage && <Text style={s.note}>Justificación: {r.justificationMessage}</Text>}
+              {!!r.justificationIdLog && <Text style={s.note}>Folio incidencia: {r.justificationIdLog}</Text>}
+              {!!r.justificationError && <Text style={s.warning}>Error justificación: {r.justificationError}</Text>}
+              {r.recuperarTiempo === true && <Text style={s.note}>Recuperará tiempo (selección local)</Text>}
             </View>
             <Text style={s.recordTime}>{r.time || "--:--"}</Text>
           </View>)}
@@ -599,7 +753,7 @@ export default function RHAsistencia() {
     <Modal visible={!!dialog} transparent animationType="fade" onRequestClose={() => !busy && setDialog(null)}>
       <View style={s.overlay}><View style={s.modal}>
         <Ionicons name="finger-print-outline" size={29} color={C.red}/>
-        <Text style={s.modalTitle}>Confirmar {MAP[dialog?.tipo]?.title?.toLowerCase() || "registro"}</Text>
+        <Text style={s.modalTitle}>{dialog?.early ? "Confirmar salida anticipada" : `Confirmar ${MAP[dialog?.tipo]?.title?.toLowerCase() || "registro"}`}</Text>
         <Text style={s.modalText}>Modalidad: {modalidadGuardada === "HomeOffice" ? "Home Office" : modalidadGuardada}</Text>
         {!!dialog?.aviso && <Text style={s.modalText}>{dialog.aviso}</Text>}
         {(dialog?.late || dialog?.early) && <>
@@ -609,6 +763,13 @@ export default function RHAsistencia() {
               <Pick title={x} selected={motivo === x} onPress={() => setMotivo(x)}/>
             </View>)}
           </View>
+          <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: recuperarTiempo }}
+            onPress={() => setRecuperarTiempo(x => !x)} style={s.checkboxRow}>
+            <Ionicons name={recuperarTiempo ? "checkbox-outline" : "square-outline"}
+              color={recuperarTiempo ? C.green : C.sub} size={23}/>
+            <Text style={s.checkboxLabel}>¿Recuperarás el tiempo?</Text>
+          </Pressable>
+          <Text style={s.note}>Esta respuesta solo se guarda en tu teléfono; todavía no se envía a SAP.</Text>
           <TextInput style={[s.textInput, { minHeight: 70, textAlignVertical: "top" }]}
             value={comentario} onChangeText={setComentario} multiline
             maxLength={500} placeholder="Explica brevemente el motivo (obligatorio)"/>
@@ -665,6 +826,8 @@ const s = StyleSheet.create({
   choice: { flexDirection: "row", alignItems: "center", gap: 8, padding: 11, borderWidth: 1, borderColor: C.border, borderRadius: 10 },
   choiceSelected: { borderColor: C.red, backgroundColor: C.pale }, choiceText: { fontSize: 12, color: C.ink, fontWeight: "700" },
   fieldLabel: { color: C.ink, fontSize: 12, fontWeight: "700" }, textInput: { borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, color: C.ink, fontSize: 13 },
+  checkboxRow: { flexDirection: "row", alignItems: "center", gap: 9, paddingVertical: 4 },
+  checkboxLabel: { color: C.ink, fontWeight: "700", fontSize: 13 },
   record: { flexDirection: "row", gap: 10, alignItems: "center", borderBottomWidth: 1, borderBottomColor: C.border, paddingBottom: 11 },
   recordTitle: { color: C.ink, fontSize: 12, fontWeight: "700" }, recordTime: { fontSize: 12, color: C.ink, fontWeight: "800" },
   overlay: { flex: 1, backgroundColor: "#0008", justifyContent: "center", padding: 20 },

@@ -86,16 +86,14 @@ export default function RRHHInicio() {
           </View>}
         </View>
         {!policy?.habilitado && <View style={s.feedback}>
-          <Ionicons name="alert-circle-outline" size={25} color={C.red}/>
-          <Text style={s.feedbackText}>Por el momento no puedes registrar asistencia. Comunícate con Recursos Humanos.</Text>
+          <Ionicons name="information-circle-outline" size={25} color={C.blue}/>
+          <Text style={s.feedbackText}>{policy?.razon || "Por el momento no puedes registrar asistencia desde la aplicación."}</Text>
         </View>}
-        {policy?.habilitado && <>
-          <Text style={s.sectionTitle}>¿Qué deseas hacer?</Text>
-          <Acceso title="Registrar asistencia" subtitle="Entrada, comida y salida"
-            icon="finger-print-outline" onPress={() => router.push("/rrhh/asistencia")}/>
-          <Acceso title="Historial de asistencias" subtitle="Consulta tus movimientos por fecha"
-            icon="calendar-outline" onPress={() => router.push("/rrhh/historial")}/>
-        </>}
+        <Text style={s.sectionTitle}>¿Qué deseas hacer?</Text>
+        {policy?.habilitado && <Acceso title="Registrar asistencia" subtitle="Entrada, comida y salida"
+          icon="finger-print-outline" onPress={() => router.push("/rrhh/asistencia")}/>}
+        <Acceso title="Historial de asistencias" subtitle="Consulta tus movimientos por fecha"
+          icon="calendar-outline" onPress={() => router.push("/rrhh/historial")}/>
       </>}
     </ScrollView>
   </SafeAreaView>;

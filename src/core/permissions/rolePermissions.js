@@ -1,58 +1,31 @@
-// src/core/permissions/rolePermissions.js
-
+// Autorización de módulos desde EmployeeSet (Position); Azure solo autentica.
 import { PERMISSIONS } from "./catalog";
 
-export function getAzureRoles(user) {
-  if (!Array.isArray(user?.azure_roles)) {
-    return [];
-  }
-
-  return [
-    ...new Set(
-      user.azure_roles
-        .filter((role) => typeof role === "string")
-        .map((role) => role.trim().toLowerCase())
-        .filter(Boolean)
-    ),
-  ];
+export function puestoSap(empleado) {
+  return String(empleado?.position || "").trim().normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").toUpperCase();
 }
 
-export function getUserPermissions(user) {
-  if (!user) {
-    return [];
-  }
-
-  const roles = getAzureRoles(user);
-
-  const permissions = new Set([
-    PERMISSIONS.RRHH.ACCEDER,
-  ]);
-
-  if (roles.includes("tecnico")) {
+export function getUserPermissions(user, employee) {
+  if (!user) return [];
+  const permissions = new Set([PERMISSIONS.RRHH.ACCEDER]);
+  const activo = String(employee?.status || "").trim() === "3";
+  if (!activo) return [...permissions];
+  const puesto = puestoSap(employee);
+  if (puesto === "SUPERVISOR") {
+    permissions.add(PERMISSIONS.MANTENIMIENTO.ACCEDER);
+    permissions.add(PERMISSIONS.MANTENIMIENTO.SUPERVISOR_ACCEDER);
+  } else if (puesto === "TECNICO") {
     permissions.add(PERMISSIONS.MANTENIMIENTO.ACCEDER);
     permissions.add(PERMISSIONS.MANTENIMIENTO.TECNICO_ACCEDER);
   }
-
-  if (roles.includes("supervisor")) {
-    permissions.add(PERMISSIONS.MANTENIMIENTO.ACCEDER);
-    permissions.add(
-      PERMISSIONS.MANTENIMIENTO.SUPERVISOR_ACCEDER
-    );
-  }
-
   return [...permissions];
 }
 
-export function getMantenimientoRoute(user) {
-  const roles = getAzureRoles(user);
-
-  if (roles.includes("supervisor")) {
-    return "/supervisor";
-  }
-
-  if (roles.includes("tecnico")) {
-    return "/tecnico";
-  }
-
+export function getMantenimientoRoute(user, employee) {
+  if (!user || String(employee?.status || "").trim() !== "3") return null;
+  const puesto = puestoSap(employee);
+  if (puesto === "SUPERVISOR") return "/supervisor";
+  if (puesto === "TECNICO") return "/tecnico";
   return null;
 }
