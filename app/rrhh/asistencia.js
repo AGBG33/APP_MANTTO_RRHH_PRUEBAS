@@ -14,7 +14,7 @@ import { prepararMarcacionRH, enviarMarcacionRH } from "../../src/services/rhAtt
 import { prepararJustificacionRH, enviarJustificacionRH } from "../../src/services/rhJustifications";
 import { consultarHistorialRH } from "../../src/services/rhHistory";
 import { clasificarEmpleadoRH, evaluarMarcacionRH, hoyISO, modalidadesPermitidasRH,
-  obtenerTurnoDelDia, horaCorta, codigoModalidadRH, TIPOS_RH } from "../../src/services/rhPolicies";
+  obtenerTurnoDelDia, registrosDeJornadaRH, horaCorta, codigoModalidadRH, TIPOS_RH } from "../../src/services/rhPolicies";
 
 const C = { bg: "#F5F6F8", white: "#FFFFFF", ink: "#202733", sub: "#647082",
   border: "#E5E8ED", red: "#D71920", pale: "#FFF1F2", green: "#18764C",
@@ -80,7 +80,7 @@ export default function RHAsistencia() {
   const numeroRegistro = String(perfilSap?.personalNumber ?? "").trim();
   const correo = String(correoAzure || "").trim();
   const storageKey = `${PREFIX}${personalNumber}`;
-  const modalidadKey = `rh:modalidad:q4:${personalNumber}:${hoyISO()}`;
+  // La clave de modalidad se calcula después de leer la hora de la jornada.
   const [employee, setEmployee] = useState(null);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -102,6 +102,9 @@ export default function RHAsistencia() {
   const [comentario, setComentario] = useState("");
   const [recuperarTiempo, setRecuperarTiempo] = useState(false);
   const [ahora, setAhora] = useState(() => new Date());
+  const turnoPerfil = perfilSap ? obtenerTurnoDelDia(perfilSap.scheduleDetail, ahora) : null;
+  // Si el turno del sábado finaliza el domingo, continúa usando la modalidad del sábado.
+  const modalidadKey = `rh:modalidad:q4:${personalNumber}:${turnoPerfil?.fechaJornada || hoyISO(ahora)}`;
 
   useEffect(() => {
     let activo = true;
@@ -135,10 +138,12 @@ export default function RHAsistencia() {
         // 2) selección guardada previamente para HOY;
         // 3) sindicalizado -> Presencial fija;
         // 4) confianza -> sin seleccionar (bloquear P10 hasta guardar).
-        const hoyActual = hoyISO(new Date());
-        const registradosHoy = parsed.filter(r => r && r.demo !== true && r.date === hoyActual &&
-          norm(r.personalNumber) === personalNumber &&
-          ["accepted", "sending", "uncertain"].includes(r.sapState));
+        const instanteCarga = new Date();
+        const turnoCarga = obtenerTurnoDelDia(empleado.scheduleDetail, instanteCarga);
+        const registradosHoy = registrosDeJornadaRH(
+          parsed.filter(r => r && r.demo !== true && norm(r.personalNumber) === personalNumber),
+          turnoCarga, instanteCarga
+        ).filter(r => ["accepted", "sending", "uncertain"].includes(r.sapState));
         const previas = registradosHoy.filter(r => ["entrada", "comida_inicio", "comida_fin", "salida"].includes(r.type));
         const modalidadesRegistradas = [...new Set(previas.map(r =>
           r.modality || ({ PR: "Presencial", HO: "HomeOffice", VN: "Viaje de negocios" }[r.typeSession]) || "").filter(Boolean))];
@@ -186,21 +191,24 @@ export default function RHAsistencia() {
 
   const today = hoyISO(ahora);
   const activos = useMemo(() => records.filter(r => r.demo !== true), [records]);
-  const deHoy = useMemo(() => activos.filter(r => r.date === today), [activos, today]);
+  const policy = employee ? clasificarEmpleadoRH(employee) : null;
+  const turno = employee ? obtenerTurnoDelDia(employee.scheduleDetail, ahora) : null;
+  // Abarca ambos días cuando el turno cruza medianoche.
+  const deHoy = useMemo(() => registrosDeJornadaRH(activos, turno, ahora),
+    [activos, turno?.inicioMs, turno?.finMs, today]);
   const aceptados = useMemo(() => deHoy.filter(r => r.sapState === "accepted"), [deHoy]);
   const pendientes = useMemo(() => deHoy.filter(r => ["sending", "uncertain", "rejected"].includes(r.sapState)), [deHoy]);
   const entrada = ultimo(aceptados, "entrada");
   const inicioComida = ultimo(aceptados, "comida_inicio");
   const regresoComida = ultimo(aceptados, "comida_fin");
   const salida = ultimo(aceptados, "salida");
-  const policy = employee ? clasificarEmpleadoRH(employee) : null;
-  const turno = employee ? obtenerTurnoDelDia(employee.scheduleDetail, ahora) : null;
   const modalidades = employee ? modalidadesPermitidasRH(employee) : ["Presencial"];
   // Cualquier POST iniciado o confirmado fija el TypeSession del día.
   // No limitarse a entrada aceptada: con un timeout también hay que bloquear cambios.
   const huboEnvioHoy = deHoy.some(r => ["accepted", "sending", "uncertain", "rejected"].includes(r.sapState) && !!TIPOS_RH[r.type]);
   const modoBloqueado = huboEnvioHoy || busy;
   const modalidadLista = !!modalidadGuardada && !bloqueoModalidadSinDatos;
+  const fechaJornada = turno?.fechaJornada || today;
 
   const persistir = useCallback(async nuevos => {
     await AsyncStorage.setItem(storageKey, JSON.stringify(nuevos));
@@ -234,7 +242,7 @@ export default function RHAsistencia() {
     catch (e) { Alert.alert("Modalidad no disponible", "No pudimos confirmar esta opción. Comunícate con Recursos Humanos."); return; }
     if (modalidad === "Viaje de negocios") {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(viajeDesde) || !/^\d{4}-\d{2}-\d{2}$/.test(viajeHasta)
-        || viajeDesde > viajeHasta || today < viajeDesde || today > viajeHasta) {
+        || viajeDesde > viajeHasta || fechaJornada < viajeDesde || fechaJornada > viajeHasta) {
         Alert.alert("Fechas del viaje", "Captura un período AAAA-MM-DD que incluya el día de hoy."); return;
       }
     }
@@ -274,7 +282,7 @@ export default function RHAsistencia() {
     try {
       // El rango del viaje se guarda solo en el teléfono; SAP recibe únicamente TypeSession=VN.
       if (modalidadGuardada === "Viaje de negocios" &&
-        (today < viajeDesde || today > viajeHasta)) {
+        (fechaJornada < viajeDesde || fechaJornada > viajeHasta)) {
         throw Error("Hoy debe estar incluido en las fechas del viaje seleccionado.");
       }
       const resultado = evaluarMarcacionRH({ empleado: employee, tipo, registros: activos,
@@ -525,13 +533,15 @@ export default function RHAsistencia() {
     <Btn title="Volver a mis datos" icon="arrow-back" outline onPress={() => router.replace("/rrhh")}/>
   </View></SafeAreaView>;
 
-  const comidaCerrada = policy?.confianza && ahora.getHours() >= 14;
+  // Una vez vencidos los 60 minutos, desaparece P25 y solo queda P20.
+  const veredictoRegreso = inicioComida && !regresoComida ? revisar("comida_fin") : null;
+  const comidaCerrada = !!veredictoRegreso?.fueraDeVentanaComida;
   const jornada = salida ? "Jornada finalizada" : pendientes.length ? "Registro pendiente de revisión"
     : !entrada ? "Aún no has registrado tu entrada"
     : inicioComida && !regresoComida && !comidaCerrada ? "En horario de comida"
     : "Jornada en curso";
   const botones = !entrada ? ["entrada"] : salida ? []
-    : inicioComida && !regresoComida ? ["comida_fin", "salida"]
+    : inicioComida && !regresoComida ? (comidaCerrada ? ["salida"] : ["comida_fin", "salida"])
     : !inicioComida ? ["comida_inicio", "salida"] : ["salida"];
   const principal = botones.find(t => t !== "salida") || botones[0] || null;
   const secundaria = botones.includes("salida") && principal !== "salida" ? "salida" : null;
@@ -698,6 +708,9 @@ export default function RHAsistencia() {
             {policy?.razon || "Tu asistencia no está habilitada desde la aplicación."}
           </Text>}
           {faltaModalidad && <Text style={s.note}>Primero confirma tu modalidad de trabajo.</Text>}
+          {comidaCerrada && !salida && <Text style={s.warning}>
+            Pasaron más de 60 minutos desde el inicio de comida. El regreso ya no está disponible; solo puedes registrar salida.
+          </Text>}
           {principal && <>
             <Btn title={principal === "entrada" ? "Registrar entrada" :
                 principal === "comida_inicio" ? "Iniciar comida" :
