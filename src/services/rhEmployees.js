@@ -36,6 +36,10 @@ export function mapearEmpleadoRH(item) {
     role: str(item, "Role"),
     groupPerson: str(item, "GroupPerson"),
     groupPersonDescription: str(item, "GroupPersonDescription"),
+    // Sólo los códigos 02/04 intervienen por ahora en estas reglas.
+    // Los demás códigos SAP se conservan sin interpretar.
+    relationJob: str(item, "RelationJob"),
+    relationJobDescription: str(item, "RelationJobDescription"),
   };
 }
 
@@ -61,7 +65,6 @@ export async function obtenerEmpleadoRH(identificador) {
           timeout: 45000,
         });
       } catch (e) {
-        // Un gateway sin tolower() puede devolver HTTP 400/501: no confundirlo con error de red.
         const optional = consultas[i].startsWith("tolower(");
         if (optional && [400, 405, 501].includes(e?.response?.status)) break;
         throw e;

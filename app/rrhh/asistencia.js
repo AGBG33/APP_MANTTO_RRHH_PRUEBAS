@@ -3,16 +3,19 @@
 // Confianza X: PR / HO / VN; sindicalizado Y: solo PR.
 // Estado de jornada basado en acuses locales; ABAP debe validar duplicados en backend.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable,
+import { ActivityIndicator, Alert, AppState, KeyboardAvoidingView, Modal, Platform, Pressable,
   SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useSapEmployee } from "../../src/context/SapEmployeeContext";
 import { prepararMarcacionRH, enviarMarcacionRH } from "../../src/services/rhAttendance";
 import { prepararJustificacionRH, enviarJustificacionRH } from "../../src/services/rhJustifications";
 import { consultarHistorialRH } from "../../src/services/rhHistory";
+import { obtenerEmpleadoRH } from "../../src/services/rhEmployees";
+import { esHomeOfficeEmpleadoRH, esViajeRH, semanaLaboralRH, mesLaboralRH,
+  resumirReglasRH, movimientosDesdeHistoryRH } from "../../src/services/rhBusinessRules";
 import { clasificarEmpleadoRH, evaluarMarcacionRH, hoyISO, modalidadesPermitidasRH,
   obtenerTurnoDelDia, registrosDeJornadaRH, horaCorta, codigoModalidadRH, TIPOS_RH } from "../../src/services/rhPolicies";
 
@@ -102,6 +105,17 @@ export default function RHAsistencia() {
   const [comentario, setComentario] = useState("");
   const [recuperarTiempo, setRecuperarTiempo] = useState(false);
   const [ahora, setAhora] = useState(() => new Date());
+  const [syncTick, setSyncTick] = useState(0);
+  const [estadoSAP, setEstadoSAP] = useState({ verificado: false, cargando: true, error: "",
+    perfil: null, jornadasMes: [], jornadasSemana: [], resumen: null, fechaJornada: "" });
+  // Al abrir la pantalla se revalida el historial y el perfil directamente con
+  // EmployeeSet, sin reiniciar el perfil global de SapEmployeeProvider.
+  // Forzar refreshPerfil() aqui ponia temporalmente employee=null/loading=true
+  // durante la navegacion y podia hacer que la pantalla pareciera cerrarse.
+  useFocusEffect(useCallback(() => {
+    setSyncTick(n => n + 1);
+    return undefined;
+  }, []));
   const turnoPerfil = perfilSap ? obtenerTurnoDelDia(perfilSap.scheduleDetail, ahora) : null;
   // Si el turno del sábado finaliza el domingo, continúa usando la modalidad del sábado.
   const modalidadKey = `rh:modalidad:q4:${personalNumber}:${turnoPerfil?.fechaJornada || hoyISO(ahora)}`;
@@ -189,33 +203,151 @@ export default function RHAsistencia() {
     return () => clearInterval(timer);
   }, []);
 
+  // Si el teléfono vuelve del segundo plano, el historial puede haber cambiado
+  // desde otra sesión o desde el monitor BTP.
+  useEffect(() => {
+    let anterior = AppState.currentState;
+    const subscription = AppState.addEventListener("change", siguiente => {
+      if ((anterior === "inactive" || anterior === "background") && siguiente === "active"
+          && !busyRef.current) {
+        setAhora(new Date());
+        // obtenerEstadoSAP vuelve a leer EmployeeSet e historial; evita resetear
+        // el provider mientras el usuario esta en la pantalla de asistencia.
+        setSyncTick(n => n + 1);
+      }
+      anterior = siguiente;
+    });
+    return () => subscription.remove();
+  }, []);
+
   const today = hoyISO(ahora);
   const activos = useMemo(() => records.filter(r => r.demo !== true), [records]);
-  const policy = employee ? clasificarEmpleadoRH(employee) : null;
-  const turno = employee ? obtenerTurnoDelDia(employee.scheduleDetail, ahora) : null;
-  // Abarca ambos días cuando el turno cruza medianoche.
-  const deHoy = useMemo(() => registrosDeJornadaRH(activos, turno, ahora),
-    [activos, turno?.inicioMs, turno?.finMs, today]);
+  const empleadoVigente = estadoSAP.perfil || employee;
+  const policy = empleadoVigente ? clasificarEmpleadoRH(empleadoVigente) : null;
+  const turno = empleadoVigente ? obtenerTurnoDelDia(empleadoVigente.scheduleDetail, ahora) : null;
+  const fechaJornada = turno?.fechaJornada || today;
+
+  // La consulta mensual sirve para retardos + jornada de hoy; la semanal para la cuota HO.
+  // Si toda la semana cabe en el mes, no se repite la petición.
+  const obtenerEstadoSAP = useCallback(async (instante = new Date()) => {
+    if (!personalNumber || !mailOK(correo)) throw Error("Identidad no disponible para validar SAP.");
+    const perfil = await obtenerEmpleadoRH(correo);
+    if (!perfil || norm(perfil.personalNumber) !== personalNumber ||
+        String(perfil.email || "").toLowerCase() !== correo.toLowerCase()) {
+      throw Error("SAP no pudo confirmar tu perfil. Comunícate con Recursos Humanos.");
+    }
+    const turnoActual = obtenerTurnoDelDia(perfil.scheduleDetail, instante);
+    const fecha = turnoActual?.fechaJornada || hoyISO(instante);
+    const mes = mesLaboralRH(fecha);
+    const semana = semanaLaboralRH(fecha);
+    const mesRespuesta = await consultarHistorialRH({ personalNumber: perfil.personalNumber,
+      desde: mes.desde, hasta: mes.hasta });
+    const semanaIncluida = semana.desde >= mes.desde && semana.hasta <= mes.hasta;
+    const semanaRespuesta = semanaIncluida ? mesRespuesta : await consultarHistorialRH({
+      personalNumber: perfil.personalNumber, desde: semana.desde, hasta: semana.hasta,
+    });
+    const resumen = resumirReglasRH({ jornadasMes: mesRespuesta.jornadas,
+      jornadasSemana: semanaRespuesta.jornadas, fechaJornada: fecha });
+    return { verificado: true, cargando: false, error: "", perfil,
+      jornadasMes: mesRespuesta.jornadas, jornadasSemana: semanaRespuesta.jornadas,
+      resumen, fechaJornada: fecha };
+  }, [personalNumber, correo]);
+
+  useEffect(() => {
+    if (!employee || perfilLoading) {
+      setEstadoSAP({ verificado: false, cargando: true, error: "", perfil: null,
+        jornadasMes: [], jornadasSemana: [], resumen: null, fechaJornada: "" });
+      return undefined;
+    }
+    let activo = true;
+    setEstadoSAP(v => ({ ...v, verificado: false, cargando: true, error: "" }));
+    obtenerEstadoSAP(new Date()).then(estado => {
+      if (activo) setEstadoSAP(estado);
+    }).catch(() => {
+      if (activo) setEstadoSAP(v => ({ ...v, verificado: false, cargando: false,
+        error: "No pudimos verificar tus movimientos y reglas con SAP. Actualiza para intentarlo nuevamente." }));
+    });
+    return () => { activo = false; };
+  }, [employee, perfilLoading, obtenerEstadoSAP, fechaJornada, syncTick]);
+
+  const sapListo = estadoSAP.verificado && !estadoSAP.cargando && !perfilLoading &&
+    estadoSAP.fechaJornada === fechaJornada && norm(estadoSAP.perfil?.personalNumber) === personalNumber;
+  const jornadaRemota = sapListo ? estadoSAP.resumen?.jornadaSAP : null;
+  const movimientosRemotos = useMemo(() =>
+    jornadaRemota ? movimientosDesdeHistoryRH(jornadaRemota, turno) : [],
+    [jornadaRemota, turno?.inicioMs, turno?.finMs, fechaJornada]);
+  const registrosCombinados = useMemo(() => [...activos, ...movimientosRemotos], [activos, movimientosRemotos]);
+  const registrosParaValidar = useMemo(() => registrosCombinados.filter(r =>
+    !(["sending", "uncertain", "rejected"].includes(r.sapState) &&
+      movimientosRemotos.some(sap => sap.type === r.type))),
+    [registrosCombinados, movimientosRemotos]);
+  const deHoy = useMemo(() => registrosDeJornadaRH(registrosCombinados, turno, ahora),
+    [registrosCombinados, turno?.inicioMs, turno?.finMs, today]);
   const aceptados = useMemo(() => deHoy.filter(r => r.sapState === "accepted"), [deHoy]);
   const pendientes = useMemo(() => deHoy.filter(r => ["sending", "uncertain", "rejected"].includes(r.sapState)), [deHoy]);
+  // Si SAP ya confirmó la marcación, no mostrar un acuse local "pendiente" del mismo tipo.
+  const pendientesReales = pendientes.filter(p => !movimientosRemotos.some(x => x.type === p.type));
   const entrada = ultimo(aceptados, "entrada");
   const inicioComida = ultimo(aceptados, "comida_inicio");
   const regresoComida = ultimo(aceptados, "comida_fin");
   const salida = ultimo(aceptados, "salida");
-  const modalidades = employee ? modalidadesPermitidasRH(employee) : ["Presencial"];
-  // Cualquier POST iniciado o confirmado fija el TypeSession del día.
-  // No limitarse a entrada aceptada: con un timeout también hay que bloquear cambios.
+  const hayRegistroSAP = !!movimientosRemotos.length;
+  const hoyEnHomeOffice = !!(sapListo && (estadoSAP.resumen?.homeOfficeHoy ||
+    esHomeOfficeEmpleadoRH(estadoSAP.perfil)));
+  const viajeActivo = !!(sapListo && esViajeRH(estadoSAP.perfil));
+  const viajeYaEnviado = aceptados.some(r => r.type === "entrada" &&
+    (r.typeSession === "VN" || r.modality === "Viaje de negocios"));
+  const previoTardanzas = sapListo ? estadoSAP.resumen?.retardosPrevios || 0 : 0;
+  const plazoRetardo = turno?.valido ? turno.inicioMs + 10 * 60000 : Infinity;
+  const esCuartoAhora = sapListo && !entrada && previoTardanzas >= 3 && ahora.getTime() > plazoRetardo;
+  const entradaFueCuarto = !!entrada && (deHoy.some(r => r.type === "entrada" && r.fourthLate) ||
+    (previoTardanzas >= 3 && (() => {
+      const fecha = entrada?.date;
+      const hora = entrada?.registerHour || entrada?.time;
+      if (!fecha || !hora) return false;
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha);
+      if (!m) return false;
+      const h = /^([01]\d|2[0-3]):([0-5]\d)/.exec(hora);
+      if (!h) return false;
+      const instante = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(h[1]), Number(h[2]));
+      return instante.getTime() > plazoRetardo;
+    })()));
+  // Una petición de cuarto retardo incierta también bloquea continuación hasta
+  // que SAP/RH determine su resultado: nunca asumir que un timeout = no guardado.
+  const cuartoPendienteConfirmar = deHoy.some(r => r.type === "entrada" && r.fourthLate &&
+    ["accepted", "sending", "uncertain", "rejected"].includes(r.sapState));
+  const bloqueadaJornadaSAP = sapListo && (estadoSAP.resumen?.inasistenciaSAP ||
+    viajeActivo || viajeYaEnviado || entradaFueCuarto || cuartoPendienteConfirmar);
+  const cuotaHOUsada = !!(sapListo && estadoSAP.resumen?.homeOfficeUsadoSemana);
+  const modalidades = empleadoVigente ? modalidadesPermitidasRH(empleadoVigente) : ["Presencial"];
+  const modalidadConfirmadaLocal = aceptados.find(x => x.modality && x.source !== "SAP")?.modality;
+  const modalidadRegistrada = hoyEnHomeOffice ? "HomeOffice" :
+    (modalidadConfirmadaLocal || (hayRegistroSAP ? "Presencial" : null));
+  // El cuarto retardo se procesa como una entrada presencial simple, sin selección
+  // de modalidad ni solicitud de justificación en la app.
+  const modalidadEfectiva = esCuartoAhora ? "Presencial" :
+    (hoyEnHomeOffice ? "HomeOffice" :
+      (entrada ? (modalidadRegistrada || modalidadGuardada) : modalidadGuardada));
   const huboEnvioHoy = deHoy.some(r => ["accepted", "sending", "uncertain", "rejected"].includes(r.sapState) && !!TIPOS_RH[r.type]);
-  const modoBloqueado = huboEnvioHoy || busy;
-  const modalidadLista = !!modalidadGuardada && !bloqueoModalidadSinDatos;
-  const fechaJornada = turno?.fechaJornada || today;
+  const modoBloqueado = huboEnvioHoy || busy || esCuartoAhora || bloqueadaJornadaSAP || hoyEnHomeOffice;
+  const modalidadLista = (esCuartoAhora || (!!modalidadEfectiva && !bloqueoModalidadSinDatos &&
+    !(modalidadEfectiva === "HomeOffice" && cuotaHOUsada && !entrada))) &&
+    sapListo && !bloqueadaJornadaSAP;
 
   const persistir = useCallback(async nuevos => {
     await AsyncStorage.setItem(storageKey, JSON.stringify(nuevos));
     setRecords(nuevos);
   }, [storageKey]);
-  const revisar = tipo => evaluarMarcacionRH({ empleado: employee, tipo, registros: activos,
-    ahora, modalidad: modalidadGuardada });
+  const revisar = tipo => {
+    if (!sapListo) return { permitido: false, mensaje: estadoSAP.error || "Primero necesitamos verificar tus registros en SAP." };
+    if (bloqueadaJornadaSAP) return { permitido: false,
+      mensaje: viajeActivo || viajeYaEnviado ? "Tienes viaje de negocios registrado. No necesitas realizar más marcaciones." :
+        "Tu jornada ya fue clasificada como inasistencia o cuarto retardo. No se admiten más marcaciones." };
+    if (modalidadEfectiva === "HomeOffice" && cuotaHOUsada && !entrada) return { permitido: false,
+      mensaje: "Ya utilizaste Home Office esta semana. Elige otra modalidad." };
+    return evaluarMarcacionRH({ empleado: empleadoVigente, tipo,
+      registros: registrosParaValidar, ahora, modalidad: modalidadEfectiva });
+  };
   const elegirFechaViaje = (evento, fecha) => {
     if (Platform.OS === "android") setViajePicker(null);
     if (evento?.type === "dismissed" || !fecha) return;
@@ -232,11 +364,15 @@ export default function RHAsistencia() {
       setViajeHasta(elegida);
     }
   };
-  const justificacionesSinConfirmar = deHoy.filter(r =>
+  const justificacionesSinConfirmar = deHoy.filter(r => r.source !== "SAP" &&
     r.sapState === "accepted" && r.needsJustification && r.justificationState !== "accepted");
 
   const guardarModalidad = async () => {
-    if (!employee || busyRef.current || modoBloqueado || bloqueoModalidadSinDatos || !policy?.confianza) return;
+    if (!employee || !sapListo || busyRef.current || modoBloqueado || bloqueoModalidadSinDatos || !policy?.confianza) return;
+    if (modalidad === "HomeOffice" && cuotaHOUsada) {
+      Alert.alert("Home Office no disponible", "Ya existe un registro de Home Office en esta semana. Solo puedes usar esta modalidad una vez por semana.");
+      return;
+    }
     if (!modalidades.includes(modalidad)) { Alert.alert("Modalidad no permitida", "No corresponde al grupo de personal."); return; }
     try { codigoModalidadRH(modalidad); }
     catch (e) { Alert.alert("Modalidad no disponible", "No pudimos confirmar esta opción. Comunícate con Recursos Humanos."); return; }
@@ -254,7 +390,7 @@ export default function RHAsistencia() {
     } catch (e) { Alert.alert("Error al guardar", e?.message || "No se pudo guardar la modalidad."); }
   };
   const abrir = tipo => {
-    if (busyRef.current || !policy?.habilitado) return;
+    if (busyRef.current || !policy?.habilitado || !sapListo || bloqueadaJornadaSAP) return;
     if (!modalidadLista) {
       Alert.alert("Falta seleccionar modalidad", "Guarda primero la modalidad antes de registrar la entrada.");
       setExtraOpen(true);
@@ -268,9 +404,57 @@ export default function RHAsistencia() {
       Alert.alert("Registro no disponible", mensaje); return;
     }
     setMotivo("Laboral"); setComentario(""); setRecuperarTiempo(false);
-    setDialog({ tipo, aviso: resultado.aviso, late: !!resultado.retardo,
-      early: !!resultado.salidaAnticipada });
+    setDialog({ tipo, aviso: esCuartoAhora ?
+      "Este sería tu cuarto retardo del mes. SAP determinará si corresponde inasistencia. Se enviará únicamente la entrada normal." : resultado.aviso,
+      late: !esCuartoAhora && !!resultado.retardo,
+      early: !esCuartoAhora && !!resultado.salidaAnticipada,
+      fourth: !!esCuartoAhora });
   };
+  // Doble comprobación: antes del GPS y justo antes del POST.
+  // Evita que otra sesión/canal avance la jornada durante la preparación del envío.
+  const validarMarcacionActualSAP = async (tipo, modalidadDeseada) => {
+    const estado = await obtenerEstadoSAP(new Date());
+    setEstadoSAP(estado);
+    const grupoActual = clasificarEmpleadoRH(estado.perfil);
+    if (!grupoActual.habilitado) throw Error(grupoActual.razon);
+    if (esViajeRH(estado.perfil)) throw Error("Tu estatus en SAP es viaje de negocios. No debes realizar marcaciones adicionales.");
+    if (estado.resumen.inasistenciaSAP) throw Error("SAP ya clasificó esta jornada como inasistencia.");
+    const turn = obtenerTurnoDelDia(estado.perfil.scheduleDetail, new Date());
+    const remotos = movimientosDesdeHistoryRH(estado.resumen.jornadaSAP, turn);
+    const combinados = [...activos, ...remotos].filter(r => !(
+      ["sending", "uncertain", "rejected"].includes(r.sapState) &&
+      remotos.some(x => x.type === r.type)));
+    const marcacionEntrada = combinados.find(r => r.type === "entrada" && r.sapState === "accepted" &&
+      registrosDeJornadaRH([r], turn, new Date()).length > 0);
+    const localViaje = combinados.some(r => r.type === "entrada" && r.sapState === "accepted" &&
+      (r.typeSession === "VN" || r.modality === "Viaje de negocios"));
+    if (localViaje) throw Error("Ya registraste tu viaje de negocios. No debes realizar más marcaciones.");
+    const cuarto = tipo === "entrada" && !marcacionEntrada && estado.resumen.retardosPrevios >= 3 &&
+      turn?.valido && Date.now() > turn.inicioMs + 10 * 60000;
+    const modalidadActual = cuarto ? "Presencial" :
+      (esHomeOfficeEmpleadoRH(estado.perfil) || estado.resumen.homeOfficeHoy ? "HomeOffice" : modalidadDeseada);
+    if (modalidadActual === "HomeOffice" && !marcacionEntrada && estado.resumen.homeOfficeUsadoSemana) {
+      throw Error("Ya registraste Home Office esta semana. Selecciona una modalidad diferente.");
+    }
+    const evaluacion = evaluarMarcacionRH({ empleado: estado.perfil,
+      tipo, registros: combinados, ahora: new Date(), modalidad: modalidadActual });
+    if (!evaluacion.permitido) throw Error(evaluacion.mensaje);
+    // Si el cuarto retardo se registró desde otro dispositivo, no autorizar comida ni salida.
+    if (tipo !== "entrada" && estado.resumen.retardosPrevios >= 3 && marcacionEntrada &&
+        turn?.valido) {
+      const hora = String(marcacionEntrada.registerHour || marcacionEntrada.time || "");
+      const momentoEntrada = fechaParaPicker(marcacionEntrada.date);
+      const t = /^(\d{1,2}):(\d{2})/.exec(hora);
+      if (t) {
+        momentoEntrada.setHours(Number(t[1]), Number(t[2]), 0, 0);
+        if (momentoEntrada.getTime() > turn.inicioMs + 10 * 60000) {
+          throw Error("Se registró el cuarto retardo. No puedes continuar la jornada; Recursos Humanos debe verificar la inasistencia en SAP.");
+        }
+      }
+    }
+    return { estado, combinados, modalidadActual, cuarto, evaluacion };
+  };
+
   const registrar = async () => {
     if (!dialog || busyRef.current || !employee || !modalidadLista) return;
     busyRef.current = true; setBusy(true);
@@ -285,10 +469,9 @@ export default function RHAsistencia() {
         (fechaJornada < viajeDesde || fechaJornada > viajeHasta)) {
         throw Error("Hoy debe estar incluido en las fechas del viaje seleccionado.");
       }
-      const resultado = evaluarMarcacionRH({ empleado: employee, tipo, registros: activos,
-        ahora: new Date(), modalidad: modalidadGuardada });
+      const resultado = revisar(tipo);
       if (!resultado.permitido) throw Error(resultado.mensaje);
-      const requiereMotivo = !!(resultado.retardo || resultado.salidaAnticipada);
+      const requiereMotivo = !esCuartoAhora && !!(resultado.retardo || resultado.salidaAnticipada);
       if (requiereMotivo !== !!(dialog.late || dialog.early)) {
         setDialog(null);
         Alert.alert("Horario actualizado", "Tu horario cambió mientras confirmabas. Vuelve a elegir el registro.");
@@ -299,22 +482,32 @@ export default function RHAsistencia() {
         return;
       }
       const { payload, gpsAccuracyMeters, evaluacion } = await prepararMarcacionRH({
-        empleado: employee, personalNumber: numeroRegistro, email: employee.email || correo,
-        type: tipo, modalidad: modalidadGuardada, registros: activos,
-        viajeDesde: modalidadGuardada === "Viaje de negocios" ? viajeDesde : "",
-        viajeHasta: modalidadGuardada === "Viaje de negocios" ? viajeHasta : "",
+        empleado: empleadoVigente, personalNumber: numeroRegistro,
+        email: empleadoVigente.email || correo,
+        type: tipo, modalidad: modalidadEfectiva, registros: registrosParaValidar,
+        viajeDesde: modalidadEfectiva === "Viaje de negocios" ? viajeDesde : "",
+        viajeHasta: modalidadEfectiva === "Viaje de negocios" ? viajeHasta : "",
       });
-      // GPS puede tardar: si el evento cambió de normal a retardo, no enviar incompleto.
-      if (!!(evaluacion.retardo || evaluacion.salidaAnticipada) !== requiereMotivo) {
+      // Validación fresca justo antes del POST (después del GPS), para evitar
+      // duplicados de otro teléfono/canal sin duplicar innecesariamente los GET.
+      const alEnviar = await validarMarcacionActualSAP(tipo, modalidadEfectiva);
+      if (alEnviar.modalidadActual !== modalidadEfectiva || alEnviar.cuarto !== esCuartoAhora ||
+          (!alEnviar.cuarto && !!(alEnviar.evaluacion.retardo || alEnviar.evaluacion.salidaAnticipada) !== requiereMotivo)) {
         setDialog(null);
-        Alert.alert("Horario actualizado", "Vuelve a confirmar el registro con su justificación.");
+        Alert.alert("Validaciones actualizadas", "SAP cambió el estado de tu jornada. Revisa nuevamente la marcación.");
+        return;
+      }
+      if (!!(evaluacion.retardo || evaluacion.salidaAnticipada) !== !!(resultado.retardo || resultado.salidaAnticipada)) {
+        setDialog(null);
+        Alert.alert("Horario actualizado", "La hora de tu jornada cambió durante la captura. Intenta nuevamente.");
         return;
       }
       pendiente = {
         id: `${Date.now()}-${tipo}-${Math.random().toString(36).slice(2,7)}`,
         personalNumber, numeroRegistro, email: employee.email || correo, type: tipo,
         date: payload.EnterDate, time: payload.EnterHour.slice(0,5), registerHour: payload.EnterHour,
-        registerType: TIPOS_RH[tipo], modality: modalidadGuardada,
+        registerType: TIPOS_RH[tipo], modality: alEnviar.modalidadActual,
+        fourthLate: alEnviar.cuarto,
         typeSession: payload.TypeSession, gpsAccuracyMeters,
         createdAt: new Date().toISOString(), demo: false, sapState: "sending",
         late: !!evaluacion.retardo, early: !!evaluacion.salidaAnticipada,
@@ -394,7 +587,11 @@ export default function RHAsistencia() {
           ? e.message : "Verifica tu conexión e inténtalo nuevamente.";
         Alert.alert("No se pudo registrar", detalle);
       }
-    } finally { busyRef.current = false; setBusy(false); }
+    } finally {
+      busyRef.current = false; setBusy(false);
+      refreshPerfil();
+      setSyncTick(n => n + 1);
+    }
   };
   // Consulta histórica antes de habilitar reintentos; jamás se reenvía automáticamente.
   const verificarYReintentar = async r => {
@@ -543,11 +740,16 @@ export default function RHAsistencia() {
   // Una vez vencidos los 60 minutos, desaparece P25 y solo queda P20.
   const veredictoRegreso = inicioComida && !regresoComida ? revisar("comida_fin") : null;
   const comidaCerrada = !!veredictoRegreso?.fueraDeVentanaComida;
-  const jornada = salida ? "Jornada finalizada" : pendientes.length ? "Registro pendiente de revisión"
+  const jornada = viajeActivo || viajeYaEnviado ? "Viaje de negocios registrado"
+    : estadoSAP.resumen?.inasistenciaSAP || entradaFueCuarto ? "Jornada bloqueada por inasistencia/cuarto retardo"
+    : salida ? "Jornada finalizada" : pendientesReales.length ? "Registro pendiente de revisión"
     : !entrada ? "Aún no has registrado tu entrada"
-    : inicioComida && !regresoComida && !comidaCerrada ? "En horario de comida"
-    : "Jornada en curso";
-  const botones = !entrada ? ["entrada"] : salida ? []
+    : inicioComida && !regresoComida && !comidaCerrada ? "En horario de comida" : "Jornada en curso";
+  const soloDosRegistros = modalidadEfectiva === "HomeOffice" || hoyEnHomeOffice;
+  const pasosVisibles = (viajeActivo || viajeYaEnviado) ? (entrada ? ["entrada"] : []) :
+    soloDosRegistros ? ["entrada", "salida"] : ORDEN;
+  const botones = bloqueadaJornadaSAP ? [] : !entrada ? ["entrada"] : salida ? []
+    : soloDosRegistros ? ["salida"]
     : inicioComida && !regresoComida ? (comidaCerrada ? ["salida"] : ["comida_fin", "salida"])
     : !inicioComida ? ["comida_inicio", "salida"] : ["salida"];
   const principal = botones.find(t => t !== "salida") || botones[0] || null;
@@ -557,7 +759,7 @@ export default function RHAsistencia() {
     resultadoPrincipal?.mensaje?.includes("ScheduleDetail") || resultadoPrincipal?.mensaje?.includes("TypeSession")
     ? "No podemos habilitar este registro. Comunícate con Recursos Humanos."
     : resultadoPrincipal?.mensaje;
-  const faltaModalidad = policy?.confianza && !modalidadLista;
+  const faltaModalidad = policy?.confianza && !modalidadLista && !bloqueadaJornadaSAP && !esCuartoAhora;
   const salidaAnticipadaAhora = !!revisar("salida")?.salidaAnticipada;
   const etiquetaSalida = salidaAnticipadaAhora ? "Registrar salida anticipada" : "Registrar salida";
 
@@ -594,10 +796,10 @@ export default function RHAsistencia() {
               <Text style={s.sectionTitle}>Estado de mi jornada</Text>
               <Text style={s.muted}>{jornada}</Text>
             </View>
-            <Ionicons name={salida ? "checkmark-circle" : pendientes.length ? "alert-circle" : "time-outline"}
-              size={23} color={salida ? C.green : pendientes.length ? C.amber : C.blue}/>
+            <Ionicons name={salida ? "checkmark-circle" : pendientesReales.length ? "alert-circle" : "time-outline"}
+              size={23} color={salida ? C.green : pendientesReales.length ? C.amber : C.blue}/>
           </View>
-          <View style={s.timeline}>{ORDEN.map((tipo, idx) => {
+          <View style={s.timeline}>{pasosVisibles.map((tipo, idx) => {
             const registro = ultimo(aceptados, tipo);
             return <View key={tipo} style={s.step}>
               <View style={[s.stepCircle, registro && s.stepDone]}>
@@ -634,7 +836,7 @@ export default function RHAsistencia() {
           </View>)}
         </View>}
 
-        {!!pendientes.length && <View style={s.card}>
+        {!!pendientesReales.length && <View style={s.card}>
           <View style={s.reviewHead}>
             <Ionicons name="alert-circle-outline" size={21} color={C.amber}/>
             <View style={{ flex: 1, gap: 4 }}>
@@ -647,7 +849,7 @@ export default function RHAsistencia() {
             <Text style={[s.expandLabel, { flex: 1 }]}>{revisionOpen ? "Ocultar opciones" : "Opciones de revisión"}</Text>
             <Ionicons name={revisionOpen ? "chevron-up" : "chevron-down"} size={18} color={C.blue}/>
           </Pressable>
-          {revisionOpen && pendientes.map(r => <View key={r.id} style={{ gap: 9 }}>
+          {revisionOpen && pendientesReales.map(r => <View key={r.id} style={{ gap: 9 }}>
             <Text style={s.muted}>{MAP[r.type]?.title || "Marcación"} · {r.time}</Text>
             {!!r.errorDetail && <Text style={s.warning}>Error: {r.errorDetail}</Text>}
             <Btn title="Verificar en SAP y evaluar reintento" icon="refresh-outline"
@@ -660,7 +862,7 @@ export default function RHAsistencia() {
           </View>)}
         </View>}
 
-        {policy?.confianza && <View style={s.card}>
+        {policy?.confianza && !esCuartoAhora && !bloqueadaJornadaSAP && <View style={s.card}>
           <CardTitle title="1. Modalidad de trabajo"
             sub="Elige cómo trabajarás hoy antes de registrar tu entrada."
             icon="briefcase-outline"/>
@@ -669,7 +871,7 @@ export default function RHAsistencia() {
           </Text>}
           {modalidadLista && <View style={s.modeSummary}>
             <Ionicons name="checkmark-circle" size={20} color={C.green}/>
-            <Text style={s.modeText}>{modalidadGuardada === "HomeOffice" ? "Home Office" : modalidadGuardada}</Text>
+            <Text style={s.modeText}>{modalidadEfectiva === "HomeOffice" ? "Home Office" : modalidadEfectiva}</Text>
             {!modoBloqueado && policy?.confianza && <Pressable accessibilityRole="button"
               onPress={() => setExtraOpen(x => !x)}>
               <Text style={s.expandLabel}>Cambiar</Text>
@@ -679,9 +881,10 @@ export default function RHAsistencia() {
             {modalidades.map(x => <Pick key={x}
               title={x === "HomeOffice" ? "Home Office" : x}
               selected={modalidad === x} onPress={() => {
+                if (x === "HomeOffice" && cuotaHOUsada) return;
                 setModalidad(x);
                 setModalidadGuardada(null);
-              }} disabled={busy}/>) }
+              }} disabled={busy || (x === "HomeOffice" && cuotaHOUsada)}/>) }
             {modalidad === "Viaje de negocios" && <View style={{ gap: 9 }}>
               <Text style={s.fieldLabel}>Fechas de tu viaje</Text>
               <View style={s.travelRow}>
@@ -711,6 +914,26 @@ export default function RHAsistencia() {
         <View style={s.card}>
           <CardTitle title={policy?.confianza ? "2. Registrar movimiento" : "Registrar movimiento"}
             icon="finger-print-outline"/>
+          {!sapListo && <Text style={s.warning}>
+            {estadoSAP.cargando ? "Verificando las marcaciones y reglas con SAP…" :
+              estadoSAP.error || "Es necesario actualizar el historial SAP antes de registrar."}
+          </Text>}
+          {sapListo && cuotaHOUsada && !entrada && policy?.confianza && <Text style={s.note}>
+            Home Office no disponible: ya hay un día registrado con esta modalidad en la semana.
+          </Text>}
+          {sapListo && esCuartoAhora && <Text style={s.warning}>
+            Ya tienes tres retardos este mes. Si registras entrada ahora, será el cuarto.
+            Se enviará sólo la entrada normal; SAP determinará la inasistencia y no podrás continuar la jornada.
+          </Text>}
+          {sapListo && (viajeActivo || viajeYaEnviado) && <Text style={s.note}>
+            Viaje de negocios registrado. No necesitas realizar marcaciones adicionales.
+          </Text>}
+          {sapListo && (estadoSAP.resumen?.inasistenciaSAP || entradaFueCuarto || cuartoPendienteConfirmar) &&
+            <Text style={s.warning}>La jornada está bloqueada por inasistencia o cuarto retardo.
+              Contacta a Recursos Humanos si necesitas una aclaración.</Text>}
+          <Btn title="Actualizar estado desde SAP" icon="refresh-outline" outline
+            disabled={busy || estadoSAP.cargando} onPress={() => { refreshPerfil(); setSyncTick(n => n + 1); }}/>
+
           {!policy?.habilitado && <Text style={s.warning}>
             {policy?.razon || "Tu asistencia no está habilitada desde la aplicación."}
           </Text>}
@@ -723,15 +946,15 @@ export default function RHAsistencia() {
                 principal === "comida_inicio" ? "Iniciar comida" :
                 principal === "comida_fin" ? "Regresar de comida" : etiquetaSalida}
               icon={MAP[principal].icon} onPress={() => abrir(principal)}
-              disabled={!modalidadLista || !resultadoPrincipal?.permitido || busy || !!pendientes.length}/>
+              disabled={!modalidadLista || !resultadoPrincipal?.permitido || busy || !!pendientesReales.length}/>
             {!!resultadoPrincipal && !resultadoPrincipal.permitido && modalidadLista &&
-              !pendientes.length && <Text style={s.note}>{mensajePrincipal}</Text>}
+              !pendientesReales.length && <Text style={s.note}>{mensajePrincipal}</Text>}
             {!!resultadoPrincipal?.retardo && <Text style={s.warning}>
               Tu entrada se registrará con retardo.
             </Text>}
           </>}
-          {secundaria && <Pressable accessibilityRole="button" disabled={busy || !modalidadLista || !!pendientes.length}
-            onPress={() => abrir(secundaria)} style={[s.exitLink, (busy || !modalidadLista || !!pendientes.length) && s.disabled]}>
+          {secundaria && <Pressable accessibilityRole="button" disabled={busy || !modalidadLista || !!pendientesReales.length || !revisar(secundaria).permitido}
+            onPress={() => abrir(secundaria)} style={[s.exitLink, (busy || !modalidadLista || !!pendientesReales.length || !revisar(secundaria).permitido) && s.disabled]}>
             <Text style={s.expandLabel}>{etiquetaSalida}</Text>
             <Ionicons name="arrow-forward" size={16} color={C.blue}/>
           </Pressable>}
@@ -743,11 +966,13 @@ export default function RHAsistencia() {
 
         {deHoy.length > 0 && <View style={s.card}>
           <Text style={s.sectionTitle}>Movimientos de hoy</Text>
-          {deHoy.slice().reverse().map(r => <View style={s.record} key={r.id || `${r.type}-${r.time}`}>
+          {deHoy.filter(r => r.source === "SAP" || !movimientosRemotos.some(sap => sap.type === r.type))
+            .slice().reverse().map(r => <View style={s.record} key={r.id || `${r.type}-${r.time}`}>
             <Ionicons name={MAP[r.type]?.icon || "time-outline"} size={19} color={C.red}/>
             <View style={{ flex: 1 }}>
               <Text style={s.recordTitle}>{MAP[r.type]?.title || "Marcación"}</Text>
-              <Text style={s.muted}>{r.sapState === "accepted" ? "Confirmado por SAP" :
+              <Text style={s.muted}>{r.source === "SAP" ? "Registrado en SAP (APP/BTP u otro dispositivo)" :
+                r.sapState === "accepted" ? "Confirmado por SAP" :
                 r.sapState === "not_recorded_sap" ? "No registrado" :
                 r.sapState === "rejected" ? "SAP rechazó la solicitud" : "Pendiente de verificación"}
                 {r.sapState === "accepted" && r.needsJustification &&
@@ -776,7 +1001,7 @@ export default function RHAsistencia() {
       <View style={s.overlay}><View style={s.modal}>
         <Ionicons name="finger-print-outline" size={29} color={C.red}/>
         <Text style={s.modalTitle}>{dialog?.early ? "Confirmar salida anticipada" : `Confirmar ${MAP[dialog?.tipo]?.title?.toLowerCase() || "registro"}`}</Text>
-        <Text style={s.modalText}>Modalidad: {modalidadGuardada === "HomeOffice" ? "Home Office" : modalidadGuardada}</Text>
+        <Text style={s.modalText}>Modalidad: {modalidadEfectiva === "HomeOffice" ? "Home Office" : modalidadEfectiva}</Text>
         {!!dialog?.aviso && <Text style={s.modalText}>{dialog.aviso}</Text>}
         {(dialog?.late || dialog?.early) && <>
           <Text style={s.fieldLabel}>Motivo {dialog.late ? "del retardo" : "de salida anticipada"}</Text>

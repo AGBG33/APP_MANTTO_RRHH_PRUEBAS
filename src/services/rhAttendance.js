@@ -98,14 +98,14 @@ export async function prepararMarcacionRH({ empleado, personalNumber, email, typ
     FullName: empleado.fullName,
     Email: correo,
     EnterDate, EnterHour,
-    Chanel: "App",                 // Antes decía SAP. Mantener el nombre OData 'Chanel'.
+    Chanel: "App",                 // Mantener el nombre OData 'Chanel'.
     Device: device,
     TypeSession: codigoModalidadRH(modalidad),
     Latitude: coord(gps.latitude),
     Longitude: coord(gps.longitude),
     GeoStatus: "", IsLate: "", Id_log: "", StatusReq: "", Message: "",
     // Contrato solicitado para AttendanceRecordSet QAS:
-    // Viaje de negocios: DateTo=inicio y DateFrom=finalización (orden indicado por el usuario).
+    // Viaje de negocios: DateTo=inicio y DateFrom=finalización (orden indicado).
     // Presencial/HomeOffice: ambos campos coinciden con EnterDate.
     DateTo: esViaje ? fechaInicioViaje : EnterDate,
     DateFrom: esViaje ? fechaFinViaje : EnterDate,
@@ -114,11 +114,40 @@ export async function prepararMarcacionRH({ empleado, personalNumber, email, typ
 }
 
 export async function enviarMarcacionRH(payload) {
-  // Sin reintentos automáticos para no generar duplicados tras un timeout.
-  const response = await api.post(ENDPOINT, payload, {
-    baseURL: RH_QAS_BASE, // Evita un POST accidental a PROD por extra.API_BASE_URL_PROD.
-    headers: { "Content-Type": "application/json", Accept: "application/json" }, timeout: 45000,
-  });
+  // Diagnóstico solo para desarrollo. NO imprime encabezados ni tokens.
+  // Evita compartir los logs completos sin ocultar nombre, correo, nómina y coordenadas.
+  if (__DEV__) {
+    console.log("[RRHH][ASISTENCIA][URL]", `${RH_QAS_BASE}${ENDPOINT}`);
+    console.log("[RRHH][ASISTENCIA][JSON ENVIADO]", JSON.stringify(payload, null, 2));
+  }
+
+  let response;
+  try {
+    // Sin reintentos automáticos para no generar duplicados tras un timeout.
+    response = await api.post(ENDPOINT, payload, {
+      baseURL: RH_QAS_BASE,
+      headers: { "Content-Type": "application/json", Accept: "application/json" }, timeout: 45000,
+    });
+  } catch (error) {
+    if (__DEV__) {
+      console.log("[RRHH][ASISTENCIA][ERROR HTTP]", JSON.stringify({
+        status: error?.response?.status ?? null,
+        statusText: error?.response?.statusText ?? "",
+        code: error?.code ?? "",
+        message: error?.message ?? "",
+        respuesta: error?.response?.data ?? null,
+      }, null, 2));
+    }
+    throw error; // Mantener lógica existente de estados inciertos y reintentos.
+  }
+
+  if (__DEV__) {
+    console.log("[RRHH][ASISTENCIA][RESPUESTA SAP/BTP]", JSON.stringify({
+      status: response.status,
+      data: response.data,
+    }, null, 2));
+  }
+
   if (response.status < 200 || response.status >= 300) throw Error(`SAP devolvió HTTP ${response.status}.`);
   const body = response?.data?.d ?? response?.data ?? {};
   const estado = String(body?.StatusReq ?? "").trim().toUpperCase();

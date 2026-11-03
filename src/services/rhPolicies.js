@@ -161,6 +161,10 @@ export function registrosDeJornadaRH(registros = [], turno, ahora = new Date()) 
   // Los P10 pueden realizarse hasta 15 minutos antes de comenzar el turno.
   const desde = turno.inicioMs - 15 * MINUTO;
   return registros.filter(r => {
+    // El historial SAP consolida por WorkDate. Si ya existe el movimiento de
+    // esa jornada, cuenta incluso cuando fue registrado fuera de la ventana
+    // calculada por la app (ej. terminal BTP, otra jornada o cambio de horario).
+    if (r.source === "SAP" && r.jornadaDate === turno.fechaJornada) return true;
     const instante = fechaHoraRegistroRH(r);
     return instante !== null && instante >= desde && instante <= turno.finMs + 4 * HORA;
   });
@@ -189,6 +193,13 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
   const codigos = new Set(confirmables.map(r =>
     r.typeSession || (r.modality && CODIGOS_MODALIDAD_RH[r.modality])).filter(Boolean));
   const codigoSeleccionado = CODIGOS_MODALIDAD_RH[modalidad];
+  // Home Office no permite marcaciones de comida. En viaje sólo se hace P10.
+  if (modalidad === "HomeOffice" && (tipo === "comida_inicio" || tipo === "comida_fin")) {
+    return { permitido: false, mensaje: "En Home Office sólo registras entrada y salida." };
+  }
+  if (modalidad === "Viaje de negocios" && tipo !== "entrada") {
+    return { permitido: false, mensaje: "El viaje de negocios sólo requiere la marcación inicial." };
+  }
   if (codigos.size > 1 || (codigos.size === 1 && !codigos.has(codigoSeleccionado))) {
     return { permitido: false, mensaje: "La modalidad seleccionada no coincide con los registros de esta jornada. Revisa el historial antes de continuar." };
   }

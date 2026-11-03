@@ -40,11 +40,36 @@ export function prepararJustificacionRH({ personalNumber, enterDate, enterHour,
 }
 
 export async function enviarJustificacionRH(payload) {
-  const response = await api.post(ENDPOINT, payload, {
-    baseURL: RH_QAS_BASE,
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    timeout: 45000,
-  });
+  // Los logs contienen datos del empleado y el comentario. Solo imprimir en desarrollo.
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    console.log("[RRHH][JUSTIFICACION][JSON ENVIADO]", JSON.stringify(payload, null, 2));
+  }
+
+  let response;
+  try {
+    response = await api.post(ENDPOINT, payload, {
+      baseURL: RH_QAS_BASE,
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      timeout: 45000,
+    });
+  } catch (error) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.log("[RRHH][JUSTIFICACION][ERROR HTTP]", {
+        status: error?.response?.status ?? null,
+        data: error?.response?.data ?? null,
+        message: error?.message ?? "",
+      });
+    }
+    throw error;
+  }
+
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    console.log("[RRHH][JUSTIFICACION][RESPUESTA SAP/BTP]", {
+      httpStatus: response.status,
+      data: response.data,
+    });
+  }
+
   const body = response?.data?.d ?? response?.data ?? {};
   const estado = String(body?.Status ?? "").trim().toUpperCase();
   const mensaje = String(body?.Message ?? "").trim();
