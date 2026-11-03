@@ -7,7 +7,7 @@ const ENDPOINT = "/api/odata/ZHMC_ATTENDANCE_MONITORING_SRV/JustificationLogSet"
 const RH_QAS_BASE = "https://my-node-api-qas-01.cfapps.us10-001.hana.ondemand.com";
 
 export function prepararJustificacionRH({ personalNumber, enterDate, enterHour,
-  registerType, motivo, comentario, idLog = "" }) {
+  registerType, motivo, comentario, recuperarTiempo = false, idLog = "" }) {
   const numero = String(personalNumber ?? "").trim();
   const fecha = String(enterDate ?? "").trim();
   const hora = String(enterHour ?? "").trim();
@@ -35,6 +35,7 @@ export function prepararJustificacionRH({ personalNumber, enterDate, enterHour,
     Id_log: String(idLog ?? "").trim(),
     Status: "",
     Message: "",
+    Istimepay: recuperarTiempo === true ? "X" : "",
   };
 }
 

@@ -280,7 +280,7 @@ export default function RHAsistencia() {
     let asistenciaAceptada = false;
     let guardados = records;
     try {
-      // El rango del viaje se guarda solo en el teléfono; SAP recibe únicamente TypeSession=VN.
+      // Se conserva el rango seleccionado y se envía a SAP en DateTo y DateFrom cuando la modalidad es VN.
       if (modalidadGuardada === "Viaje de negocios" &&
         (fechaJornada < viajeDesde || fechaJornada > viajeHasta)) {
         throw Error("Hoy debe estar incluido en las fechas del viaje seleccionado.");
@@ -301,6 +301,8 @@ export default function RHAsistencia() {
       const { payload, gpsAccuracyMeters, evaluacion } = await prepararMarcacionRH({
         empleado: employee, personalNumber: numeroRegistro, email: employee.email || correo,
         type: tipo, modalidad: modalidadGuardada, registros: activos,
+        viajeDesde: modalidadGuardada === "Viaje de negocios" ? viajeDesde : "",
+        viajeHasta: modalidadGuardada === "Viaje de negocios" ? viajeHasta : "",
       });
       // GPS puede tardar: si el evento cambió de normal a retardo, no enviar incompleto.
       if (!!(evaluacion.retardo || evaluacion.salidaAnticipada) !== requiereMotivo) {
@@ -349,7 +351,7 @@ export default function RHAsistencia() {
       const justificacion = prepararJustificacionRH({
         personalNumber: numeroRegistro, enterDate: payload.EnterDate,
         enterHour: payload.EnterHour, registerType: payload.RegisterType,
-        motivo, comentario: comentario.trim(), idLog: "",
+        motivo, comentario: comentario.trim(), recuperarTiempo, idLog: "",
       });
       guardados = guardados.map(x => x.id === pendiente.id
         ? { ...x, justificationState: "sending", justificationPayload: justificacion } : x);
@@ -466,11 +468,16 @@ export default function RHAsistencia() {
       busyRef.current = true; setBusy(true);
       let actual = records;
       try {
-        const payloadJust = r.justificationPayload || prepararJustificacionRH({
-          personalNumber: r.numeroRegistro || numeroRegistro, enterDate: r.date,
-          enterHour: horaOriginal, registerType: r.registerType,
-          motivo: r.reason, comentario: r.comment, idLog: "",
-        });
+        // Conservar exactamente la marcación anterior; solo se reintenta la justificación.
+        // Compatibilidad con acuses previos que todavía no tenían Istimepay.
+        const payloadJust = r.justificationPayload
+          ? { ...r.justificationPayload, Istimepay: r.recuperarTiempo === true ? "X" : "" }
+          : prepararJustificacionRH({
+              personalNumber: r.numeroRegistro || numeroRegistro, enterDate: r.date,
+              enterHour: horaOriginal, registerType: r.registerType,
+              motivo: r.reason, comentario: r.comment,
+              recuperarTiempo: r.recuperarTiempo === true, idLog: "",
+            });
         actual = actual.map(x => x.id === r.id ? {
           ...x, justificationState: "sending", justificationPayload: payloadJust,
         } : x);
@@ -753,7 +760,9 @@ export default function RHAsistencia() {
               {!!r.justificationMessage && <Text style={s.note}>Justificación: {r.justificationMessage}</Text>}
               {!!r.justificationIdLog && <Text style={s.note}>Folio incidencia: {r.justificationIdLog}</Text>}
               {!!r.justificationError && <Text style={s.warning}>Error justificación: {r.justificationError}</Text>}
-              {r.recuperarTiempo === true && <Text style={s.note}>Recuperará tiempo (selección local)</Text>}
+              {r.recuperarTiempo === true && <Text style={s.note}>
+                Recuperará tiempo ({r.justificationState === "accepted" ? "justificación confirmada por SAP" : "justificación por confirmar"})
+              </Text>}
             </View>
             <Text style={s.recordTime}>{r.time || "--:--"}</Text>
           </View>)}
@@ -782,7 +791,7 @@ export default function RHAsistencia() {
               color={recuperarTiempo ? C.green : C.sub} size={23}/>
             <Text style={s.checkboxLabel}>¿Recuperarás el tiempo?</Text>
           </Pressable>
-          <Text style={s.note}>Esta respuesta solo se guarda en tu teléfono; todavía no se envía a SAP.</Text>
+          <Text style={s.note}>Esta selección se enviará con la justificación a SAP (Istimepay: X si recuperará el tiempo; vacío en caso contrario).</Text>
           <TextInput style={[s.textInput, { minHeight: 70, textAlignVertical: "top" }]}
             value={comentario} onChangeText={setComentario} multiline
             maxLength={500} placeholder="Explica brevemente el motivo (obligatorio)"/>

@@ -1,12 +1,14 @@
 // src/services/rhHistory.js
-// Consulta de historial RRHH desde SAP QAS, usando el cliente autenticado de la app.
-// NO usa AsyncStorage. NO envía registros; solo GET a AttendanceHistorySet.
+// GET de AttendanceHistorySet en SAP QAS. No modifica registros ni utiliza AsyncStorage.
+// OData recibe DateFrom/DateTo como AAAAMMDD y devuelve jornadas por WorkDate.
+// La propiedad "registros" se conserva para no afectar los reintentos de asistencia.js.
 import api from "./api";
 
 const HISTORY_SET = "/api/odata/ZHMC_ATTENDANCE_MONITORING_SRV/AttendanceHistorySet";
-const MAX_DAYS_FALLBACK = 31;
-const MAX_PAGES = 15;
+const RH_QAS_BASE = "https://my-node-api-qas-01.cfapps.us10-001.hana.ondemand.com";
+const MAX_PAGES = 80;
 const pad2 = value => String(value).padStart(2, "0");
+const str = value => String(value ?? "").trim();
 
 export function fechaLocalRH(date = new Date()) {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
@@ -21,41 +23,22 @@ export function cambiarDiasRH(date, dias) {
 export function fechaSAPValida(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return false;
   const [year, month, day] = value.split("-").map(Number);
+  if (year < 1900 || year > 9999) return false;
   const d = new Date(year, month - 1, day, 12);
-  return fechaLocalRH(d) === value;
-}
-
-function numDiasInclusivos(desde, hasta) {
-  const [y1, m1, d1] = desde.split("-").map(Number);
-  const [y2, m2, d2] = hasta.split("-").map(Number);
-  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000) + 1;
-}
-
-function diasEntre(desde, hasta) {
-  const dias = numDiasInclusivos(desde, hasta);
-  const [year, month, day] = desde.split("-").map(Number);
-  const out = [];
-  for (let i = 0; i < dias; i++) {
-    const date = new Date(Date.UTC(year, month - 1, day + i));
-    out.push(`${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`);
-  }
-  return out;
+  return !Number.isNaN(d.getTime()) && fechaLocalRH(d) === value;
 }
 
 function fechaDesdeSAP(value) {
   if (value == null || value === "") return "";
-  if (typeof value === "object") {
-    if (value?.value) return fechaDesdeSAP(value.value);
-    return "";
-  }
-  const txt = String(value).trim();
-  if (fechaSAPValida(txt)) return txt;
-  if (/^\d{8}$/.test(txt)) return fechaDesdeSAP(`${txt.slice(0,4)}-${txt.slice(4,6)}-${txt.slice(6,8)}`);
-  if (/^\d{4}-\d{2}-\d{2}T/.test(txt)) return fechaDesdeSAP(txt.slice(0,10));
-  const ticks = txt.match(/^\/Date\((-?\d+)/);
+  if (typeof value === "object") return value?.value ? fechaDesdeSAP(value.value) : "";
+  const t = str(value);
+  if (fechaSAPValida(t)) return t;
+  if (/^\d{8}$/.test(t)) return fechaDesdeSAP(`${t.slice(0, 4)}-${t.slice(4, 6)}-${t.slice(6, 8)}`);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(t)) return fechaDesdeSAP(t.slice(0, 10));
+  const ticks = /^\/Date\((-?\d+)/.exec(t);
   if (ticks) {
-    const date = new Date(Number(ticks[1]));
-    return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+    const d = new Date(Number(ticks[1]));
+    return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
   }
   return "";
 }
@@ -63,164 +46,159 @@ function fechaDesdeSAP(value) {
 function horaDesdeSAP(value) {
   if (value == null || value === "") return "";
   if (typeof value === "object") {
-    if (Number.isFinite(value.ms)) {
-      const ms = value.ms % 86400000;
-      return `${pad2(Math.floor(ms / 3600000))}:${pad2(Math.floor(ms / 60000) % 60)}:${pad2(Math.floor(ms / 1000) % 60)}`;
-    }
-    return "";
+    if (!Number.isFinite(value?.ms)) return "";
+    const ms = ((value.ms % 86400000) + 86400000) % 86400000;
+    return `${pad2(Math.floor(ms / 3600000))}:${pad2(Math.floor(ms / 60000) % 60)}:${pad2(Math.floor(ms / 1000) % 60)}`;
   }
-  const txt = String(value).trim();
-  if (/^\d{2}:\d{2}(:\d{2})?$/.test(txt)) return txt.length === 5 ? `${txt}:00` : txt;
-  if (/^\d{6}$/.test(txt)) return `${txt.slice(0,2)}:${txt.slice(2,4)}:${txt.slice(4,6)}`;
-  const duration = txt.match(/^PT(\d+)H(\d+)M(?:(\d+)S)?$/i);
-  if (duration) return `${pad2(duration[1])}:${pad2(duration[2])}:${pad2(duration[3] || 0)}`;
-  return txt;
+  const text = str(value);
+  if (/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(text)) return text.length === 5 ? `${text}:00` : text;
+  if (/^\d{6}$/.test(text)) return horaDesdeSAP(`${text.slice(0, 2)}:${text.slice(2, 4)}:${text.slice(4, 6)}`);
+  const duration = /^PT(\d+)H(\d+)M(?:(\d+)S)?$/i.exec(text);
+  if (duration) return horaDesdeSAP(`${pad2(duration[1])}:${pad2(duration[2])}:${pad2(duration[3] || 0)}`);
+  return "";
 }
 
-const str = value => String(value ?? "").trim();
-const field = (raw, ...names) => {
-  for (const name of names) {
-    if (raw?.[name] !== undefined && raw?.[name] !== null && raw[name] !== "") return str(raw[name]);
-  }
-  return "";
-};
+const numeroCanonico = numero => str(numero).replace(/^0+/, "") || "0";
+const esHoraRegistrada = hora => !!hora && hora !== "00:00:00";
 
-const TIPOS = {
-  P10: { tipo: "entrada", etiqueta: "Entrada", icono: "log-in-outline" },
-  P15: { tipo: "comida_inicio", etiqueta: "Inicio de comida", icono: "restaurant-outline" },
-  P25: { tipo: "comida_fin", etiqueta: "Regreso de comida", icono: "play-outline" },
-  P20: { tipo: "salida", etiqueta: "Salida", icono: "log-out-outline" },
-};
-
+// Una fila por empleado y jornada. WorkDate es la fecha real de agrupación:
+// DateFrom y DateTo dentro de la respuesta pueden corresponder a un viaje.
 export function mapearHistorialRH(item, indice = 0) {
-  const registerType = field(item, "RegisterType", "RegistrationType", "Type").toUpperCase();
-  const tipo = TIPOS[registerType] || { tipo: "otro", etiqueta: registerType ? `Registro ${registerType}` : "Movimiento", icono: "time-outline" };
-  const date = fechaDesdeSAP(field(item, "EnterDate", "RegisterDate", "ReferenceDate", "Date"));
-  const time = horaDesdeSAP(item?.EnterHour ?? item?.RegisterHour ?? item?.Hour ?? item?.Time);
+  const date = fechaDesdeSAP(item?.WorkDate) || fechaDesdeSAP(item?.EnterDate);
+  const personalNumber = str(item?.PersonalNumber);
+  const p10Time = horaDesdeSAP(item?.P10Time);
+  const p15Time = horaDesdeSAP(item?.P15Time);
+  const p25Time = horaDesdeSAP(item?.P25Time);
+  const p20Time = horaDesdeSAP(item?.P20Time);
   return {
-    id: field(item, "Id_log", "IdLog", "ID", "Id") || `${date}-${time}-${registerType}-${indice}`,
-    personalNumber: field(item, "PersonalNumber", "Pernr", "PERNR"),
-    fullName: field(item, "FullName", "EmployeeName"),
-    date, time, registerType,
-    type: tipo.tipo, title: tipo.etiqueta, icon: tipo.icono,
-    email: field(item, "Email"),
-    channel: field(item, "Chanel", "Channel"),
-    device: field(item, "Device"),
-    status: field(item, "Status", "DescriptionStatus"),
-    schedule: field(item, "Schedule", "Hourly"),
-    zone: field(item, "Zone"),
-    centerOffice: field(item, "CenterOffice"),
-    isLate: field(item, "IsLate"),
-    geoStatus: field(item, "GeoStatus"),
-    statusReq: field(item, "StatusReq"),
-    message: field(item, "Message"),
+    id: `${personalNumber}-${date}-${indice}`,
+    personalNumber,
+    date,
+    dayStatus: str(item?.DayStatus),
+    p10Time,
+    p15Time,
+    p25Time,
+    p20Time,
   };
 }
 
-// SAP OData v2 puede devolver d.results y d.__next (paginación).
+// Conserva la interfaz anterior usada por asistencia.js para verificar si
+// SAP ya recibió un P10/P15/P25/P20 antes de reintentar un POST.
+function eventosDeJornada(jornada) {
+  const eventos = [
+    ["P10", "entrada", "Entrada", "log-in-outline", jornada.p10Time],
+    ["P15", "comida_inicio", "Inicio de comida", "restaurant-outline", jornada.p15Time],
+    ["P25", "comida_fin", "Regreso de comida", "play-outline", jornada.p25Time],
+    ["P20", "salida", "Salida", "log-out-outline", jornada.p20Time],
+  ];
+  return eventos.filter(([, , , , hora]) => esHoraRegistrada(hora))
+    .map(([registerType, type, title, icon, time]) => ({
+      id: "", // AttendanceHistorySet consolidado no incluye Id_log por movimiento.
+      personalNumber: jornada.personalNumber,
+      date: jornada.date,
+      time,
+      registerType,
+      type,
+      title,
+      icon,
+      statusReq: "", // No inventar un estado de respuesta SAP.
+      message: "",
+    }));
+}
+
 function extraerRespuesta(data) {
   const body = data?.d ?? data;
   if (Array.isArray(body?.results)) return { resultados: body.results, siguiente: body.__next || null };
   if (Array.isArray(data?.value)) return { resultados: data.value, siguiente: data["@odata.nextLink"] || null };
   if (Array.isArray(body)) return { resultados: body, siguiente: null };
-  throw Error("SAP devolvió un formato inesperado. Se esperaba d.results.");
+  throw Error("SAP devolvió un formato inesperado en AttendanceHistorySet.");
 }
 
 function paramsSiguiente(url) {
-  // Reutiliza solo los parámetros de página; nunca solicita otra URL/host.
-  const query = String(url ?? "").split("?")[1];
+  // SAP puede responder con una URL interna. Solo se extrae la paginación:
+  // jamás se realizan solicitudes al host interno devuelto por __next.
+  const query = str(url).split("?")[1];
   if (!query) return null;
-  const allowed = new Set(["$skiptoken", "$skip", "$top"]);
-  const out = {};
+  const params = {};
   for (const part of query.split("&")) {
-    const pos = part.indexOf("=");
-    if (pos < 0) continue;
-    const key = decodeURIComponent(part.slice(0, pos).replace(/\+/g, " "));
-    if (!allowed.has(key)) continue;
-    out[key] = decodeURIComponent(part.slice(pos + 1).replace(/\+/g, " "));
+    const index = part.indexOf("=");
+    if (index < 0) continue;
+    const key = decodeURIComponent(part.slice(0, index).replace(/\+/g, " "));
+    if (!["$skiptoken", "$skip", "$top"].includes(key)) continue;
+    params[key] = decodeURIComponent(part.slice(index + 1).replace(/\+/g, " "));
   }
-  return Object.keys(out).length ? out : null;
+  return Object.keys(params).length ? params : null;
 }
 
 async function consultaFiltrada(filter, signal) {
   let params = { $filter: filter, $format: "json" };
-  const todos = [];
-  const paginas = new Set();
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const respuesta = await api.get(HISTORY_SET, { params, timeout: 45000, signal });
-    const { resultados, siguiente } = extraerRespuesta(respuesta.data);
-    todos.push(...resultados);
-    if (!siguiente) return todos;
-    const sig = paramsSiguiente(siguiente);
-    if (!sig) throw Error("SAP devolvió una continuación de página que no se pudo interpretar.");
-    const firma = JSON.stringify(sig);
-    if (paginas.has(firma)) throw Error("SAP repitió una página del historial.");
-    paginas.add(firma);
-    params = { $filter: filter, $format: "json", ...sig };
+  const todas = [];
+  const vistas = new Set();
+  for (let pagina = 0; pagina < MAX_PAGES; pagina++) {
+    const response = await api.get(HISTORY_SET, {
+      baseURL: RH_QAS_BASE,
+      params,
+      timeout: 45000,
+      signal,
+    });
+    const { resultados, siguiente } = extraerRespuesta(response.data);
+    todas.push(...resultados);
+    if (!siguiente) return todas;
+    const siguientesParams = paramsSiguiente(siguiente);
+    if (!siguientesParams) throw Error("SAP devolvió una página de historial que no pudimos interpretar.");
+    const firma = JSON.stringify(siguientesParams);
+    if (vistas.has(firma)) throw Error("SAP repitió una página del historial.");
+    vistas.add(firma);
+    params = { $filter: filter, $format: "json", ...siguientesParams };
   }
-  throw Error("El historial tiene demasiadas páginas; reduce el rango de fechas.");
+  throw Error("El historial excedió el límite de páginas. Consulta un período menor.");
 }
 
-async function consultaPorDia(personalNumber, desde, hasta, signal) {
-  const fechas = diasEntre(desde, hasta);
-  const todos = [];
-  // Solicitudes controladas (3 simultáneas) para no saturar SAP QAS.
-  for (let i = 0; i < fechas.length; i += 3) {
-    const grupo = fechas.slice(i, i + 3);
-    const lotes = await Promise.all(grupo.map(fecha => consultaFiltrada(
-      `PersonalNumber eq '${personalNumber}' and EnterDate eq '${fecha}'`, signal
-    )));
-    for (const resultados of lotes) todos.push(...resultados);
-  }
-  return todos;
+function diasInclusivos(desde, hasta) {
+  const [y1, m1, d1] = desde.split("-").map(Number);
+  const [y2, m2, d2] = hasta.split("-").map(Number);
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000) + 1;
 }
 
 /**
- * Consulta real de AttendanceHistorySet. Para un día usa EQ, como el ejemplo probado.
- * Para un rango intenta GE/LE estándar OData y, si SAP lo rechaza o devuelve vacío,
- * utiliza un EQ por día (solo si el rango no supera 31 días).
+ * Consulta por día, mes o año con filtros reconocidos por GET_FILTERS en ABAP:
+ * DateFrom eq 'AAAAMMDD' and DateTo eq 'AAAAMMDD' and PersonalNumber eq 'NOMINA'.
+ * La consulta por mes/año solo amplía las fechas; no hace un GET por cada día.
  *
- * NO se incluye caché local. Si el servidor responde 200 sin filas, retorna [].
+ * Devuelve:
+ *  jornadas: un elemento por fecha, con DayStatus y las cuatro horas.
+ *  registros: eventos individuales derivados de cada jornada (compatibilidad).
  */
 export async function consultarHistorialRH({ personalNumber, desde, hasta, signal }) {
   const numero = str(personalNumber);
   if (!/^\d{1,8}$/.test(numero)) throw Error("Número de nómina no válido.");
   if (!fechaSAPValida(desde) || !fechaSAPValida(hasta) || desde > hasta) {
-    throw Error("Selecciona un rango de fechas válido: Desde debe ser anterior o igual a Hasta.");
+    throw Error("Selecciona fechas válidas; la fecha inicial no puede ser posterior a la final.");
   }
-  const dias = numDiasInclusivos(desde, hasta);
-  if (dias > 90) throw Error("El rango máximo por consulta es de 90 días. Selecciona un período menor.");
+  const dias = diasInclusivos(desde, hasta);
+  if (dias > 366) throw Error("Solo puedes consultar un período de hasta un año.");
 
-  let filas = [];
-  let metodo = "dia";
-  if (dias === 1) {
-    filas = await consultaFiltrada(`PersonalNumber eq '${numero}' and EnterDate eq '${desde}'`, signal);
-  } else {
-    const filter = `PersonalNumber eq '${numero}' and EnterDate ge '${desde}' and EnterDate le '${hasta}'`;
-    try {
-      filas = await consultaFiltrada(filter, signal);
-      metodo = "rango";
-    } catch (e) {
-      if (signal?.aborted) throw e;
-      // Solo probar alternativa cuando SAP rechaza operadores de rango.
-      const status = e?.response?.status;
-      if (![400, 405, 422, 501].includes(status) || dias > MAX_DAYS_FALLBACK) throw e;
-      filas = await consultaPorDia(numero, desde, hasta, signal);
-      metodo = "dias_individuales";
-    }
-    if (filas.length === 0 && dias <= MAX_DAYS_FALLBACK && metodo === "rango") {
-      // Algunos servicios ABAP devuelven 200 [] cuando ignoran GE/LE.
-      filas = await consultaPorDia(numero, desde, hasta, signal);
-      metodo = "dias_individuales";
-    }
+  const dateFrom = desde.replace(/-/g, "");
+  const dateTo = hasta.replace(/-/g, "");
+  const filter = `DateFrom eq '${dateFrom}' and DateTo eq '${dateTo}' and PersonalNumber eq '${numero}'`;
+  const filas = await consultaFiltrada(filter, signal);
+  const jornadas = [];
+  const fechasAgregadas = new Set();
+  for (const item of filas) {
+    if (numeroCanonico(item?.PersonalNumber) !== numeroCanonico(numero)) continue;
+    const jornada = mapearHistorialRH(item);
+    if (!jornada.date || jornada.date < desde || jornada.date > hasta) continue;
+    if (fechasAgregadas.has(jornada.date)) continue;
+    fechasAgregadas.add(jornada.date);
+    jornadas.push(jornada);
   }
-
-  // Protección frente a filtros ignorados por ABAP: no mezclar otros empleados ni fechas.
-  const limpio = filas.map(mapearHistorialRH).filter(r => {
-    if (r.personalNumber && r.personalNumber.replace(/^0+/, "") !== numero.replace(/^0+/, "")) return false;
-    if (r.date && (r.date < desde || r.date > hasta)) return false;
-    return true;
-  });
-  limpio.sort((a,b) => `${b.date}|${b.time}|${b.id}`.localeCompare(`${a.date}|${a.time}|${a.id}`));
-  return { registros: limpio, metodo, consultados: filas.length, dias };
+  jornadas.sort((a, b) => b.date.localeCompare(a.date));
+  const registros = jornadas.flatMap(eventosDeJornada);
+  return {
+    jornadas,
+    registros,
+    metodo: dias === 1 ? "dia" : "rango",
+    consultados: filas.length,
+    dias,
+  };
 }

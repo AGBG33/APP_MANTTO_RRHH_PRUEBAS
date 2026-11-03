@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 import * as Location from "expo-location";
 import * as Application from "expo-application";
 import api from "./api";
-import { codigoModalidadRH, TIPOS_RH, evaluarMarcacionRH } from "./rhPolicies";
+import { codigoModalidadRH, TIPOS_RH, evaluarMarcacionRH, obtenerTurnoDelDia } from "./rhPolicies";
 
 const ENDPOINT = "/api/odata/ZHMC_ATTENDANCE_MONITORING_SRV/AttendanceRecordSet";
 const RH_QAS_BASE = "https://my-node-api-qas-01.cfapps.us10-001.hana.ondemand.com";
@@ -52,7 +52,7 @@ export async function obtenerIdentificadorDispositivoRH() {
   throw Error("Marcaciones disponibles en Android/iOS.");
 }
 
-export async function prepararMarcacionRH({ empleado, personalNumber, email, type, modalidad = "Presencial", registros = [] }) {
+export async function prepararMarcacionRH({ empleado, personalNumber, email, type, modalidad = "Presencial", registros = [], viajeDesde = "", viajeHasta = "" }) {
   const numero = String(personalNumber ?? "").trim();
   const correo = String(email ?? "").trim();
   if (!/^\d{1,8}$/.test(numero)) throw Error("Número de nómina inválido.");
@@ -71,6 +71,27 @@ export async function prepararMarcacionRH({ empleado, personalNumber, email, typ
   const pad = pad2;
   const EnterDate = `${instante.getFullYear()}-${pad(instante.getMonth() + 1)}-${pad(instante.getDate())}`;
   const EnterHour = `${pad(instante.getHours())}:${pad(instante.getMinutes())}:${pad(instante.getSeconds())}`;
+
+  const esViaje = modalidad === "Viaje de negocios";
+  const fechaInicioViaje = String(viajeDesde ?? "").trim();
+  const fechaFinViaje = String(viajeHasta ?? "").trim();
+  if (esViaje) {
+    const fechaValida = valor => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
+      const [anio, mes, dia] = valor.split("-").map(Number);
+      const fecha = new Date(anio, mes - 1, dia, 12);
+      return fecha.getFullYear() === anio && fecha.getMonth() + 1 === mes && fecha.getDate() === dia;
+    };
+    if (!fechaValida(fechaInicioViaje) || !fechaValida(fechaFinViaje) || fechaInicioViaje > fechaFinViaje) {
+      throw Error("Fechas del viaje inválidas. Confirma la fecha de inicio y fin antes de registrar.");
+    }
+    // Los turnos nocturnos siguen vinculados a la fecha en la que inició la jornada.
+    const fechaJornada = obtenerTurnoDelDia(empleado.scheduleDetail, instante).fechaJornada || EnterDate;
+    if (fechaJornada < fechaInicioViaje || fechaJornada > fechaFinViaje) {
+      throw Error("La jornada actual no está incluida en las fechas del viaje de negocios.");
+    }
+  }
+
   const payload = {
     PersonalNumber: numero,
     RegisterType: TIPOS_RH[type],
@@ -83,6 +104,11 @@ export async function prepararMarcacionRH({ empleado, personalNumber, email, typ
     Latitude: coord(gps.latitude),
     Longitude: coord(gps.longitude),
     GeoStatus: "", IsLate: "", Id_log: "", StatusReq: "", Message: "",
+    // Contrato solicitado para AttendanceRecordSet QAS:
+    // Viaje de negocios: DateTo=inicio y DateFrom=finalización (orden indicado por el usuario).
+    // Presencial/HomeOffice: ambos campos coinciden con EnterDate.
+    DateTo: esViaje ? fechaInicioViaje : EnterDate,
+    DateFrom: esViaje ? fechaFinViaje : EnterDate,
   };
   return { payload, gpsAccuracyMeters: gps.accuracyMeters, evaluacion };
 }
