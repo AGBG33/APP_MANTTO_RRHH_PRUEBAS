@@ -745,7 +745,7 @@ export default function RHAsistencia() {
     : salida ? "Jornada finalizada" : pendientesReales.length ? "Registro pendiente de revisión"
     : !entrada ? "Aún no has registrado tu entrada"
     : inicioComida && !regresoComida && !comidaCerrada ? "En horario de comida" : "Jornada en curso";
-  const soloDosRegistros = modalidadEfectiva === "HomeOffice" || hoyEnHomeOffice;
+  const soloDosRegistros = policy?.sindicalizado || modalidadEfectiva === "HomeOffice" || hoyEnHomeOffice;
   const pasosVisibles = (viajeActivo || viajeYaEnviado) ? (entrada ? ["entrada"] : []) :
     soloDosRegistros ? ["entrada", "salida"] : ORDEN;
   const botones = bloqueadaJornadaSAP ? [] : !entrada ? ["entrada"] : salida ? []
@@ -929,8 +929,7 @@ export default function RHAsistencia() {
             Viaje de negocios registrado. No necesitas realizar marcaciones adicionales.
           </Text>}
           {sapListo && (estadoSAP.resumen?.inasistenciaSAP || entradaFueCuarto || cuartoPendienteConfirmar) &&
-            <Text style={s.warning}>La jornada está bloqueada por inasistencia o cuarto retardo.
-              Contacta a Recursos Humanos si necesitas una aclaración.</Text>}
+            <Text style={s.warning}>Jornada bloqueada por cuarto retardo. Contactar a Recursos Humanos para aclaraciones.</Text>}
           <Btn title="Actualizar estado desde SAP" icon="refresh-outline" outline
             disabled={busy || estadoSAP.cargando} onPress={() => { refreshPerfil(); setSyncTick(n => n + 1); }}/>
 

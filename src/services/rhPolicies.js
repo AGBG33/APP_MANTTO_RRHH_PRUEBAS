@@ -183,6 +183,9 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
   const p = clasificarEmpleadoRH(empleado);
   if (!p.habilitado) return { permitido: false, mensaje: p.razon };
   if (!TIPOS_RH[tipo]) return { permitido: false, mensaje: "Tipo de registro desconocido." };
+  if (p.sindicalizado && (tipo === "comida_inicio" || tipo === "comida_fin")) {
+    return { permitido: false, mensaje: "El personal sindicalizado únicamente registra entrada y salida." };
+  }
   if (!modalidad) return { permitido: false, mensaje: "Primero selecciona y guarda la modalidad de trabajo antes de registrar la entrada." };
   if (!modalidadesPermitidasRH(empleado).includes(modalidad)) {
     return { permitido: false, mensaje: "Esta modalidad no corresponde al grupo de personal." };
@@ -239,7 +242,7 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
     if (inicioComida) return { permitido: false, mensaje: "Ya registraste inicio de comida en esta jornada." };
     // Se mantiene la regla previa de comida 12:00-13:00 para personal de confianza.
     if (p.confianza && (hora < 720 || hora > 780)) {
-      return { permitido: false, mensaje: "Confianza: inicia la comida de 12:00 a 13:00." };
+      return { permitido: false, mensaje: "El personal dispone de una hora de comida dentro del horario de 12:00 a 14:00." };
     }
     return { permitido: true,
       aviso: "El regreso de comida se habilita inmediatamente y permanecerá disponible durante los siguientes 60 minutos." };

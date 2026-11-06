@@ -3,7 +3,7 @@
     "name": "Melmex App QAS",
     "slug": "mitsu_frontend",
     "scheme": "mitsuapp",
-    "version": "beta 2",
+    "version": "beta 3",
     "orientation": "portrait",
     "icon": "./assets/icon_mitsu_qas.png",
     "userInterfaceStyle": "light",
@@ -52,7 +52,8 @@
       "expo-sqlite",
       "expo-asset",
       "expo-location",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "./plugins/withBtpG5Trust"
     ],
     "extra": {
       "AZURE_TENANT_ID": "12326ef5-6c3e-48e8-a6ff-2661c6efcfb1",
