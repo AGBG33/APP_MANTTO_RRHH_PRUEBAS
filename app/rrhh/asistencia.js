@@ -740,7 +740,12 @@ export default function RHAsistencia() {
   // Una vez vencidos los 60 minutos, desaparece P25 y solo queda P20.
   const veredictoRegreso = inicioComida && !regresoComida ? revisar("comida_fin") : null;
   const comidaCerrada = !!veredictoRegreso?.fueraDeVentanaComida;
-  const jornada = viajeActivo || viajeYaEnviado ? "Viaje de negocios registrado"
+  // No presentar el estado provisional de los acuses locales como resultado definitivo
+  // mientras aún falta validar EmployeeSet + AttendanceHistorySet en SAP.
+  const verificandoSAP = !sapListo && !estadoSAP.error &&
+    (estadoSAP.cargando || perfilLoading || !!employee);
+  const jornada = !sapListo ? (verificandoSAP ? "Consultando información de SAP…" : "No se pudo verificar la jornada")
+    : viajeActivo || viajeYaEnviado ? "Viaje de negocios registrado"
     : estadoSAP.resumen?.inasistenciaSAP || entradaFueCuarto ? "Jornada bloqueada por inasistencia/cuarto retardo"
     : salida ? "Jornada finalizada" : pendientesReales.length ? "Registro pendiente de revisión"
     : !entrada ? "Aún no has registrado tu entrada"
@@ -796,10 +801,17 @@ export default function RHAsistencia() {
               <Text style={s.sectionTitle}>Estado de mi jornada</Text>
               <Text style={s.muted}>{jornada}</Text>
             </View>
-            <Ionicons name={salida ? "checkmark-circle" : pendientesReales.length ? "alert-circle" : "time-outline"}
-              size={23} color={salida ? C.green : pendientesReales.length ? C.amber : C.blue}/>
+            <Ionicons name={!sapListo ? "alert-circle-outline" : salida ? "checkmark-circle" : pendientesReales.length ? "alert-circle" : "time-outline"}
+              size={23} color={!sapListo ? C.danger : salida ? C.green : pendientesReales.length ? C.amber : C.blue}/>
           </View>
-          <View style={s.timeline}>{pasosVisibles.map((tipo, idx) => {
+          {!sapListo && !verificandoSAP && <View style={s.sapErrorBox} accessibilityLiveRegion="polite">
+            <Ionicons name="alert-circle-outline" size={25} color={C.danger}/>
+            <Text style={s.sapLoadingTitle}>No pudimos verificar la información de SAP.</Text>
+            <Text style={s.sapLoadingText}>{estadoSAP.error || "Consulta de nuevo para recuperar el estado de tu jornada."}</Text>
+            <Btn title="Reintentar consulta" icon="refresh-outline" outline
+              disabled={busy} onPress={() => setSyncTick(n => n + 1)}/>
+          </View>}
+          {sapListo && <View style={s.timeline}>{pasosVisibles.map((tipo, idx) => {
             const registro = ultimo(aceptados, tipo);
             return <View key={tipo} style={s.step}>
               <View style={[s.stepCircle, registro && s.stepDone]}>
@@ -809,14 +821,14 @@ export default function RHAsistencia() {
               <Text style={s.stepLabel}>{MAP[tipo].title}</Text>
               <Text style={[s.stepTime, registro && { color: C.green }]}>{registro?.time || "--:--"}</Text>
             </View>;
-          })}</View>
-          {policy?.sindicalizado && <Text style={s.turnoLine}>Modalidad: Presencial</Text>}
-          {turno?.valido && <Text style={s.turnoLine}>
+          })}</View>}
+          {sapListo && policy?.sindicalizado && <Text style={s.turnoLine}>Modalidad: Presencial</Text>}
+          {sapListo && turno?.valido && <Text style={s.turnoLine}>
             <Ionicons name="time-outline" size={15} color={C.sub}/>  Horario de hoy: {turno.textoInicio}–{turno.textoFin}
           </Text>}
         </View>
 
-        {!!justificacionesSinConfirmar.length && <View style={s.card}>
+        {sapListo && !!justificacionesSinConfirmar.length && <View style={s.card}>
           <View style={s.reviewHead}>
             <Ionicons name="alert-circle-outline" size={21} color={C.amber}/>
             <View style={{ flex: 1, gap: 4 }}>
@@ -836,7 +848,7 @@ export default function RHAsistencia() {
           </View>)}
         </View>}
 
-        {!!pendientesReales.length && <View style={s.card}>
+        {sapListo && !!pendientesReales.length && <View style={s.card}>
           <View style={s.reviewHead}>
             <Ionicons name="alert-circle-outline" size={21} color={C.amber}/>
             <View style={{ flex: 1, gap: 4 }}>
@@ -862,7 +874,7 @@ export default function RHAsistencia() {
           </View>)}
         </View>}
 
-        {policy?.confianza && !esCuartoAhora && !bloqueadaJornadaSAP && <View style={s.card}>
+        {sapListo && policy?.confianza && !esCuartoAhora && !bloqueadaJornadaSAP && <View style={s.card}>
           <CardTitle title="1. Modalidad de trabajo"
             sub="Elige cómo trabajarás hoy antes de registrar tu entrada."
             icon="briefcase-outline"/>
@@ -914,10 +926,10 @@ export default function RHAsistencia() {
         <View style={s.card}>
           <CardTitle title={policy?.confianza ? "2. Registrar movimiento" : "Registrar movimiento"}
             icon="finger-print-outline"/>
-          {!sapListo && <Text style={s.warning}>
-            {estadoSAP.cargando ? "Verificando las marcaciones y reglas con SAP…" :
-              estadoSAP.error || "Es necesario actualizar el historial SAP antes de registrar."}
-          </Text>}
+          {!sapListo && !verificandoSAP && <View style={s.sapInlineStatus} accessibilityLiveRegion="polite">
+            <Ionicons name="alert-circle-outline" size={19} color={C.danger}/>
+            <Text style={s.sapInlineText}>No es posible registrar movimientos hasta verificar la jornada en SAP.</Text>
+          </View>}
           {sapListo && cuotaHOUsada && !entrada && policy?.confianza && <Text style={s.note}>
             Home Office no disponible: ya hay un día registrado con esta modalidad en la semana.
           </Text>}
@@ -936,11 +948,11 @@ export default function RHAsistencia() {
           {!policy?.habilitado && <Text style={s.warning}>
             {policy?.razon || "Tu asistencia no está habilitada desde la aplicación."}
           </Text>}
-          {faltaModalidad && <Text style={s.note}>Primero confirma tu modalidad de trabajo.</Text>}
+          {sapListo && faltaModalidad && <Text style={s.note}>Primero confirma tu modalidad de trabajo.</Text>}
           {comidaCerrada && !salida && <Text style={s.warning}>
             Pasaron más de 60 minutos desde el inicio de comida. El regreso ya no está disponible; solo puedes registrar salida.
           </Text>}
-          {principal && <>
+          {sapListo && principal && <>
             <Btn title={principal === "entrada" ? "Registrar entrada" :
                 principal === "comida_inicio" ? "Iniciar comida" :
                 principal === "comida_fin" ? "Regresar de comida" : etiquetaSalida}
@@ -952,18 +964,18 @@ export default function RHAsistencia() {
               Tu entrada se registrará con retardo.
             </Text>}
           </>}
-          {secundaria && <Pressable accessibilityRole="button" disabled={busy || !modalidadLista || !!pendientesReales.length || !revisar(secundaria).permitido}
+          {sapListo && secundaria && <Pressable accessibilityRole="button" disabled={busy || !modalidadLista || !!pendientesReales.length || !revisar(secundaria).permitido}
             onPress={() => abrir(secundaria)} style={[s.exitLink, (busy || !modalidadLista || !!pendientesReales.length || !revisar(secundaria).permitido) && s.disabled]}>
             <Text style={s.expandLabel}>{etiquetaSalida}</Text>
             <Ionicons name="arrow-forward" size={16} color={C.blue}/>
           </Pressable>}
-          {salida && <Text style={s.success}>Completaste tus registros de hoy.</Text>}
-          {!turno?.valido && !salida && <Text style={s.note}>
+          {sapListo && salida && <Text style={s.success}>Completaste tus registros de hoy.</Text>}
+          {sapListo && !turno?.valido && !salida && <Text style={s.note}>
             No encontramos un horario válido para hoy. Consulta con Recursos Humanos.
           </Text>}
         </View>
 
-        {deHoy.length > 0 && <View style={s.card}>
+        {sapListo && deHoy.length > 0 && <View style={s.card}>
           <Text style={s.sectionTitle}>Movimientos de hoy</Text>
           {deHoy.filter(r => r.source === "SAP" || !movimientosRemotos.some(sap => sap.type === r.type))
             .slice().reverse().map(r => <View style={s.record} key={r.id || `${r.type}-${r.time}`}>
@@ -994,6 +1006,12 @@ export default function RHAsistencia() {
         <Btn title="Ver historial de asistencias" icon="calendar-outline" outline
           onPress={() => router.push("/rrhh/historial")}/>
       </ScrollView>
+      {verificandoSAP && <View style={s.sapGeneralOverlay} accessibilityLiveRegion="polite">
+        <View style={s.sapGeneralCard}>
+          <ActivityIndicator size="large" color={C.red}/>
+          <Text style={s.sapLoadingTitle}>Consultando tu información</Text>
+        </View>
+      </View>}
     </KeyboardAvoidingView>
 
     <Modal visible={!!dialog} transparent animationType="fade" onRequestClose={() => !busy && setDialog(null)}>
@@ -1054,6 +1072,18 @@ const s = StyleSheet.create({
   employeeBar: { backgroundColor: C.white, borderRadius: 14, padding: 14, flexDirection: "row", gap: 11, alignItems: "center", borderWidth: 1, borderColor: C.border },
   employeeName: { color: C.ink, fontSize: 15, fontWeight: "800" }, muted: { color: C.sub, fontSize: 12, lineHeight: 18 },
   card: { padding: 16, borderWidth: 1, borderColor: C.border, borderRadius: 16, backgroundColor: C.white, gap: 13 },
+  // Capa unica durante la consulta; evita mostrar tarjetas vacias o estados provisionales.
+  sapGeneralOverlay: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0,
+    backgroundColor: C.bg, justifyContent: "center", alignItems: "center", padding: 24,
+    zIndex: 20, elevation: 20 },
+  sapGeneralCard: { backgroundColor: C.white, borderWidth: 1, borderColor: C.border,
+    borderRadius: 18, paddingVertical: 30, paddingHorizontal: 24, width: "100%",
+    maxWidth: 350, alignItems: "center", gap: 14 },
+  sapErrorBox: { alignItems: "center", justifyContent: "center", paddingVertical: 16, paddingHorizontal: 12, gap: 10, backgroundColor: C.pale, borderRadius: 12 },
+  sapLoadingTitle: { fontSize: 13, fontWeight: "800", color: C.ink, textAlign: "center" },
+  sapLoadingText: { fontSize: 12, lineHeight: 18, color: C.sub, textAlign: "center" },
+  sapInlineStatus: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.bg, padding: 12, borderRadius: 11 },
+  sapInlineText: { color: C.sub, fontSize: 12, lineHeight: 18, flex: 1 },
   sectionHeader: { flexDirection: "row", gap: 10, alignItems: "flex-start" }, sectionTitle: { color: C.ink, fontSize: 16, fontWeight: "800" },
   sub: { color: C.sub, fontSize: 12, marginTop: 4, lineHeight: 17 },
   status: { flexDirection: "row", alignItems: "center", padding: 11, gap: 9, borderRadius: 11 },

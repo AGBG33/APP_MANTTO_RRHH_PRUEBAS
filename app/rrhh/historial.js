@@ -17,6 +17,7 @@ const C = {
   bg: "#F5F6F8", white: "#FFFFFF", ink: "#202733", sub: "#647082",
   border: "#E5E8ED", red: "#D71920", pale: "#FFF1F2",
   danger: "#AF2634", soft: "#F8F9FB",
+  green: "#18734F", greenSoft: "#EAF6F0", redSoft: "#FFF0ED",
 };
 const MODOS = [
   { id: "dia", label: "Día" },
@@ -85,37 +86,50 @@ function Boton({ title, icon = "search-outline", onPress, outline = false, disab
   </Pressable>;
 }
 
-function Tiempo({ etiqueta, valor }) {
-  return <View style={s.timeCard}>
-    <Text style={s.timeLabel}>{etiqueta}</Text>
+// Cuatro marcaciones en una sola cuadrícula compacta, sin cuatro tarjetas grandes.
+function Tiempo({ etiqueta, valor, posicion }) {
+  return <View style={[s.timeCell,
+    posicion % 2 === 0 && s.timeCellLeft,
+    posicion < 2 && s.timeCellTop]}>
+    <Text style={s.timeLabel} numberOfLines={1}>{etiqueta}</Text>
     <Text style={s.timeValue} selectable>{tiempoVisible(valor)}</Text>
   </View>;
 }
 
 function TarjetaJornada({ jornada }) {
   const estatus = String(jornada.dayStatus || "").trim();
+  // Conservar la visibilidad actual del estatus (RETARDO no se muestra).
   const mostrarEstatus = !!estatus && estatus.toUpperCase() !== "RETARDO";
+  const estadoMayus = estatus.toUpperCase();
+  const esPresente = estadoMayus === "PRESENTE";
+  const esAusente = estadoMayus === "AUSENTE";
+  const fechaISO = String(jornada.date || "");
+  const fechaValida = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(fechaISO);
+  const numeroDia = fechaValida ? fechaISO.slice(8) : "--";
+  const mesCorto = fechaValida ? MESES[Number(fechaISO.slice(5, 7)) - 1].slice(0, 3).toUpperCase() : "---";
+
   return <View style={s.dayCard}>
     <View style={s.dayHeader}>
-      <View style={s.calendarIcon}>
-        <Ionicons name="calendar-outline" size={21} color={C.red}/>
+      <View style={s.dateBlock}>
+        <Text style={s.dateNumber}>{numeroDia}</Text>
+        <Text style={s.dateMonth}>{mesCorto}</Text>
       </View>
       <View style={s.dayHeaderText}>
-        <Text style={s.weekday}>{nombreDia(jornada.date)}</Text>
-        <Text style={s.dayDate}>{fechaAmigable(jornada.date)}</Text>
+        <Text style={s.weekday} numberOfLines={1}>{nombreDia(jornada.date)}</Text>
+        <Text style={s.dayDate} numberOfLines={1}>{fechaAmigable(jornada.date)}</Text>
       </View>
+      {mostrarEstatus && <View accessibilityLabel={`Modalidad o estado: ${estatus}`}
+        style={[s.statusChip, esPresente && s.statusChipPresent, esAusente && s.statusChipAbsent]}>
+        <Text numberOfLines={2} style={[s.statusValue,
+          esPresente && s.statusValuePresent, esAusente && s.statusValueAbsent]}>{estatus}</Text>
+      </View>}
     </View>
 
-    {mostrarEstatus && <View style={s.statusRow}>
-      <Text style={s.statusLabel}>Modalidad / estado</Text>
-      <Text style={s.statusValue}>{estatus}</Text>
-    </View>}
-
     <View style={s.timesGrid}>
-      <Tiempo etiqueta="Entrada" valor={jornada.p10Time}/>
-      <Tiempo etiqueta="Inicio de comida" valor={jornada.p15Time}/>
-      <Tiempo etiqueta="Regreso de comida" valor={jornada.p25Time}/>
-      <Tiempo etiqueta="Salida" valor={jornada.p20Time}/>
+      <Tiempo etiqueta="Entrada" valor={jornada.p10Time} posicion={0}/>
+      <Tiempo etiqueta="Inicio de comida" valor={jornada.p15Time} posicion={1}/>
+      <Tiempo etiqueta="Regreso de comida" valor={jornada.p25Time} posicion={2}/>
+      <Tiempo etiqueta="Salida" valor={jornada.p20Time} posicion={3}/>
     </View>
   </View>;
 }
@@ -137,6 +151,11 @@ export default function RHHistorial() {
   const [loading, setLoading] = useState(true);
   const [jornadas, setJornadas] = useState([]);
   const [error, setError] = useState("");
+  // Identifica el período confirmado: nunca mostrar jornadas de otro rango
+  // (o de otra nómina) durante una nueva consulta.
+  const [claveCargada, setClaveCargada] = useState("");
+  const [claveError, setClaveError] = useState("");
+  const claveConsulta = `${numeroRegistro}|${aplicado.desde}|${aplicado.hasta}`;
 
   useFocusEffect(useCallback(() => {
     if (perfilLoading) {
@@ -145,6 +164,8 @@ export default function RHHistorial() {
     }
     if (!nominaValida) {
       setError(perfilError || "No encontramos tu número de nómina en SAP.");
+      setClaveError(claveConsulta);
+      setClaveCargada("");
       setJornadas([]);
       setLoading(false);
       return undefined;
@@ -153,14 +174,16 @@ export default function RHHistorial() {
     const controller = new AbortController();
     setLoading(true);
     setError("");
-    setJornadas([]);
     consultarHistorialRH({
       personalNumber: numeroRegistro,
       desde: aplicado.desde,
       hasta: aplicado.hasta,
       signal: controller.signal,
     }).then(({ jornadas: rows }) => {
-      if (activo) setJornadas(Array.isArray(rows) ? rows : []);
+      if (!activo) return;
+      setJornadas(Array.isArray(rows) ? rows : []);
+      setClaveCargada(claveConsulta);
+      setClaveError("");
     }).catch(e => {
       if (!activo) return;
       const status = e?.response?.status;
@@ -172,10 +195,20 @@ export default function RHHistorial() {
           ? e.message
           : "No pudimos consultar las asistencias. Verifica tu conexión e inténtalo de nuevo.";
       setError(mensaje);
+      setClaveError(claveConsulta);
     }).finally(() => { if (activo) setLoading(false); });
     return () => { activo = false; controller.abort(); };
   }, [numeroRegistro, nominaValida, perfilLoading, perfilError,
-    aplicado.desde, aplicado.hasta, aplicado.version]));
+    aplicado.desde, aplicado.hasta, aplicado.version, claveConsulta]));
+
+  // Durante una actualización del MISMO período se conservan las tarjetas
+  // confirmadas con un aviso de actualización. Al cambiar el período, las tarjetas
+  // anteriores desaparecen de inmediato y solo aparece el spinner.
+  const datosDelPeriodo = !perfilLoading && claveCargada === claveConsulta;
+  const errorDelPeriodo = !perfilLoading && !loading && !!error && claveError === claveConsulta;
+  const actualizandoPeriodo = loading && datosDelPeriodo && jornadas.length > 0;
+  const consultando = perfilLoading || loading || (!datosDelPeriodo && !errorDelPeriodo);
+  const mostrarJornadas = datosDelPeriodo && !errorDelPeriodo && (!consultando || actualizandoPeriodo);
 
   // Una selección en el calendario o en las listas lanza directamente la consulta.
   // Se incrementa version incluso si se vuelve a elegir el mismo día, mes o año.
@@ -228,20 +261,22 @@ export default function RHHistorial() {
 
   const Encabezado = <View style={s.topContent}>
     {Filtros}
-    {!loading && !error && <View style={s.summary}>
+    {mostrarJornadas && <View style={s.summary}>
       <Text style={s.summaryCount}>{jornadas.length} {jornadas.length === 1 ? "día registrado" : "días registrados"}</Text>
     </View>}
-    {loading && <View style={s.stateCard}>
-      <ActivityIndicator size="large" color={C.red}/>
-      <Text style={s.stateText}>Consultando tus asistencias en SAP…</Text>
+    {consultando && <View style={[s.stateCard, actualizandoPeriodo && s.stateCompact]} accessibilityLiveRegion="polite">
+      <ActivityIndicator size={actualizandoPeriodo ? "small" : "large"} color={C.red}/>
+      <Text style={s.stateText}>{perfilLoading ? "Consultando tu perfil en SAP…" : actualizandoPeriodo
+        ? "Actualizando historial en SAP; se muestran los datos de la última consulta confirmada."
+        : "Consultando tu información"}</Text>
     </View>}
-    {!loading && !!error && <View style={s.stateCard}>
+    {errorDelPeriodo && <View style={s.stateCard}>
       <Ionicons name="alert-circle-outline" size={31} color={C.danger}/>
       <Text style={s.sectionTitle}>No se pudo cargar el historial</Text>
       <Text style={s.stateText}>{error}</Text>
       <Boton title="Reintentar" icon="refresh-outline" outline onPress={consultarDeNuevo}/>
     </View>}
-    {!loading && !error && jornadas.length === 0 && <View style={s.stateCard}>
+    {!consultando && !errorDelPeriodo && datosDelPeriodo && jornadas.length === 0 && <View style={s.stateCard}>
       <Ionicons name="calendar-clear-outline" size={32} color={C.sub}/>
       <Text style={s.sectionTitle}>Sin registros</Text>
       <Text style={s.stateText}>No encontramos asistencias para el período consultado.</Text>
@@ -264,7 +299,7 @@ export default function RHHistorial() {
       </Pressable>
     </View>
 
-    <FlatList data={loading || error ? [] : jornadas}
+    <FlatList data={mostrarJornadas ? jornadas : []}
       keyExtractor={item => `${item.personalNumber}-${item.date}`}
       renderItem={({ item }) => <TarjetaJornada jornada={item}/>}
       ListHeaderComponent={Encabezado}
@@ -371,8 +406,8 @@ const s = StyleSheet.create({
   headerSub: { fontSize: 11, color: C.sub, marginTop: 3 },
   reload: { width: 38, height: 38, borderRadius: 10, backgroundColor: C.pale,
     alignItems: "center", justifyContent: "center" },
-  content: { padding: 16, paddingBottom: 32, gap: 13 },
-  topContent: { gap: 14 },
+  content: { paddingHorizontal: 13, paddingTop: 13, paddingBottom: 30, gap: 10 },
+  topContent: { gap: 12 },
   sectionTitle: { fontSize: 16, fontWeight: "800", color: C.ink },
   filterCard: { backgroundColor: C.white, borderWidth: 1, borderColor: C.border,
     borderRadius: 14, padding: 10, gap: 8 },
@@ -397,24 +432,37 @@ const s = StyleSheet.create({
   summaryCount: { color: C.ink, fontWeight: "800", fontSize: 13 },
   stateCard: { borderRadius: 17, backgroundColor: C.white, borderWidth: 1,
     borderColor: C.border, padding: 26, alignItems: "center", gap: 13 },
+  stateCompact: { padding: 12, flexDirection: "row", justifyContent: "center" },
   stateText: { fontSize: 12.5, color: C.sub, lineHeight: 19, textAlign: "center" },
-  dayCard: { borderRadius: 17, backgroundColor: C.white, borderColor: C.border,
-    borderWidth: 1, padding: 15, gap: 13 },
-  dayHeader: { flexDirection: "row", alignItems: "center", gap: 11 },
-  calendarIcon: { backgroundColor: C.pale, borderRadius: 12, width: 43, height: 43,
-    alignItems: "center", justifyContent: "center" },
-  dayHeaderText: { flex: 1, gap: 3 },
+  // Una tarjeta por día: acento rojo y fecha destacada delimitan cada jornada.
+  dayCard: { backgroundColor: C.white, borderRadius: 14, borderWidth: 1,
+    borderColor: C.border, borderLeftWidth: 3, borderLeftColor: C.red,
+    paddingHorizontal: 11, paddingTop: 10, paddingBottom: 11, gap: 9 },
+  dayHeader: { flexDirection: "row", alignItems: "center", gap: 9, minHeight: 47 },
+  dateBlock: { backgroundColor: C.pale, borderRadius: 9, width: 42, height: 47,
+    alignItems: "center", justifyContent: "center", gap: 0 },
+  dateNumber: { color: C.red, fontSize: 19, fontWeight: "800", lineHeight: 23 },
+  dateMonth: { color: C.red, fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
+  dayHeaderText: { flex: 1, minWidth: 0, gap: 2 },
   weekday: { color: C.ink, fontWeight: "800", fontSize: 14, textTransform: "capitalize" },
-  dayDate: { color: C.sub, fontSize: 12, textTransform: "capitalize" },
-  statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    gap: 12, backgroundColor: C.soft, borderRadius: 10, padding: 10 },
-  statusLabel: { color: C.sub, fontWeight: "600", fontSize: 11.5 },
-  statusValue: { color: C.ink, fontWeight: "800", fontSize: 11.5, flexShrink: 1, textAlign: "right" },
-  timesGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 9 },
-  timeCard: { width: "48.5%", padding: 11, backgroundColor: C.soft,
-    borderRadius: 11, borderWidth: 1, borderColor: C.border, gap: 8 },
-  timeLabel: { color: C.sub, fontSize: 11 },
-  timeValue: { fontSize: 17, fontWeight: "800", color: C.ink },
+  dayDate: { color: C.sub, fontSize: 10.5, textTransform: "capitalize" },
+  statusChip: { maxWidth: 105, minHeight: 23, borderRadius: 8,
+    backgroundColor: C.soft, paddingHorizontal: 8, paddingVertical: 5,
+    justifyContent: "center", alignItems: "center" },
+  statusChipPresent: { backgroundColor: C.greenSoft },
+  statusChipAbsent: { backgroundColor: C.redSoft },
+  statusValue: { color: C.ink, fontWeight: "800", fontSize: 9.5, textAlign: "center" },
+  statusValuePresent: { color: C.green },
+  statusValueAbsent: { color: C.danger },
+  // Una sola superficie con divisores discretos para las cuatro horas.
+  timesGrid: { flexDirection: "row", flexWrap: "wrap", backgroundColor: C.soft,
+    borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden" },
+  timeCell: { width: "50%", minHeight: 47, paddingHorizontal: 10,
+    paddingVertical: 6, justifyContent: "center", gap: 2 },
+  timeCellLeft: { borderRightWidth: 1, borderRightColor: C.border },
+  timeCellTop: { borderBottomWidth: 1, borderBottomColor: C.border },
+  timeLabel: { color: C.sub, fontSize: 10.5 },
+  timeValue: { fontSize: 14.5, fontWeight: "800", color: C.ink },
   footer: { marginTop: 5, marginBottom: 12 },
   overlay: { flex: 1, backgroundColor: "#0007", padding: 20, justifyContent: "center" },
   modalCard: { backgroundColor: C.white, padding: 17, borderRadius: 18, gap: 14,
