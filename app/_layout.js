@@ -1,4 +1,3 @@
-// app/_layout.js
 import React, { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import { View } from "react-native";
@@ -13,6 +12,7 @@ import { DrawerProvider } from "../src/context/DrawerContext";
 import SideDrawer from "../src/components/SideDrawer";
 import { OfflineProvider } from "../src/offline/OfflineProvider";
 import AnimatedSplashVideo from "../src/components/AnimatedSplashVideo";
+import RHOfflineSyncAgent from "../src/rrhh/components/RHOfflineSyncAgent";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -41,6 +41,7 @@ export default function RootLayout() {
     <OfflineProvider>
       <AuthProvider>
         <SapEmployeeProvider>
+          <RHOfflineSyncAgent/>
           <OrdenesTecnicoProvider>
             <UbicacionProvider>
               <DrawerProvider>

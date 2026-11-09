@@ -8,15 +8,18 @@ import {
   SafeAreaView, StatusBar, StyleSheet, Text, View,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import NetInfo from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useSapEmployee } from "../../src/context/SapEmployeeContext";
 import { consultarHistorialRH, fechaLocalRH } from "../../src/services/rhHistory";
+import { guardarHistorialRHCache, leerHistorialRHCache } from "../../src/rrhh/offline/rhOfflineDb";
 
 const C = {
   bg: "#F5F6F8", white: "#FFFFFF", ink: "#202733", sub: "#647082",
   border: "#E5E8ED", red: "#D71920", pale: "#FFF1F2",
   danger: "#AF2634", soft: "#F8F9FB",
+  green: "#18734F", greenSoft: "#EAF6F0", redSoft: "#FFF0ED",
 };
 const MODOS = [
   { id: "dia", label: "Día" },
@@ -85,46 +88,62 @@ function Boton({ title, icon = "search-outline", onPress, outline = false, disab
   </Pressable>;
 }
 
-function Tiempo({ etiqueta, valor }) {
-  return <View style={s.timeCard}>
-    <Text style={s.timeLabel}>{etiqueta}</Text>
+// Cuatro marcaciones en una sola cuadrícula compacta, sin cuatro tarjetas grandes.
+function Tiempo({ etiqueta, valor, posicion }) {
+  return <View style={[s.timeCell,
+    posicion % 2 === 0 && s.timeCellLeft,
+    posicion < 2 && s.timeCellTop]}>
+    <Text style={s.timeLabel} numberOfLines={1}>{etiqueta}</Text>
     <Text style={s.timeValue} selectable>{tiempoVisible(valor)}</Text>
   </View>;
 }
 
 function TarjetaJornada({ jornada }) {
   const estatus = String(jornada.dayStatus || "").trim();
+  // Conservar la visibilidad actual del estatus (RETARDO no se muestra).
   const mostrarEstatus = !!estatus && estatus.toUpperCase() !== "RETARDO";
+  const estadoMayus = estatus.toUpperCase();
+  const esPresente = estadoMayus === "PRESENTE";
+  const esAusente = estadoMayus === "AUSENTE";
+  const fechaISO = String(jornada.date || "");
+  const fechaValida = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(fechaISO);
+  const numeroDia = fechaValida ? fechaISO.slice(8) : "--";
+  const mesCorto = fechaValida ? MESES[Number(fechaISO.slice(5, 7)) - 1].slice(0, 3).toUpperCase() : "---";
+
   return <View style={s.dayCard}>
     <View style={s.dayHeader}>
-      <View style={s.calendarIcon}>
-        <Ionicons name="calendar-outline" size={21} color={C.red}/>
+      <View style={s.dateBlock}>
+        <Text style={s.dateNumber}>{numeroDia}</Text>
+        <Text style={s.dateMonth}>{mesCorto}</Text>
       </View>
       <View style={s.dayHeaderText}>
-        <Text style={s.weekday}>{nombreDia(jornada.date)}</Text>
-        <Text style={s.dayDate}>{fechaAmigable(jornada.date)}</Text>
+        <Text style={s.weekday} numberOfLines={1}>{nombreDia(jornada.date)}</Text>
+        <Text style={s.dayDate} numberOfLines={1}>{fechaAmigable(jornada.date)}</Text>
       </View>
+      {mostrarEstatus && <View accessibilityLabel={`Modalidad o estado: ${estatus}`}
+        style={[s.statusChip, esPresente && s.statusChipPresent, esAusente && s.statusChipAbsent]}>
+        <Text numberOfLines={2} style={[s.statusValue,
+          esPresente && s.statusValuePresent, esAusente && s.statusValueAbsent]}>{estatus}</Text>
+      </View>}
     </View>
 
-    {mostrarEstatus && <View style={s.statusRow}>
-      <Text style={s.statusLabel}>Modalidad / estado</Text>
-      <Text style={s.statusValue}>{estatus}</Text>
-    </View>}
-
     <View style={s.timesGrid}>
-      <Tiempo etiqueta="Entrada" valor={jornada.p10Time}/>
-      <Tiempo etiqueta="Inicio de comida" valor={jornada.p15Time}/>
-      <Tiempo etiqueta="Regreso de comida" valor={jornada.p25Time}/>
-      <Tiempo etiqueta="Salida" valor={jornada.p20Time}/>
+      <Tiempo etiqueta="Entrada" valor={jornada.p10Time} posicion={0}/>
+      <Tiempo etiqueta="Inicio de comida" valor={jornada.p15Time} posicion={1}/>
+      <Tiempo etiqueta="Regreso de comida" valor={jornada.p25Time} posicion={2}/>
+      <Tiempo etiqueta="Salida" valor={jornada.p20Time} posicion={3}/>
     </View>
   </View>;
 }
 
 export default function RHHistorial() {
   // Identidad de Microsoft ya vinculada al EmployeeSet de SAP.
-  const { employee: perfilSap, loading: perfilLoading, error: perfilError } = useSapEmployee();
+  const { employee: perfilSap, email: correoCuenta, loading: perfilLoading, error: perfilError } = useSapEmployee();
+  const correo = String(correoCuenta || "").trim().toLowerCase();
+  // No permitir cache de una identidad diferente a la sesión validada.
+  const perfilCoincide = !!perfilSap && String(perfilSap.email || "").trim().toLowerCase() === correo;
   const numeroRegistro = String(perfilSap?.personalNumber ?? "").trim();
-  const nominaValida = /^\d{1,8}$/.test(numeroRegistro);
+  const nominaValida = perfilCoincide && /^\d{1,8}$/.test(numeroRegistro);
 
   const [modo, setModo] = useState("dia");
   const [fechaElegida, setFechaElegida] = useState(() => fechaLocalAlMediodia(new Date()));
@@ -137,45 +156,140 @@ export default function RHHistorial() {
   const [loading, setLoading] = useState(true);
   const [jornadas, setJornadas] = useState([]);
   const [error, setError] = useState("");
+  const [origenDatos, setOrigenDatos] = useState(null); // "sap" | "cache"
+  const [cacheGuardadoEn, setCacheGuardadoEn] = useState(null);
+  // Identifica el período confirmado: nunca mostrar jornadas de otro rango
+  // (o de otra nómina) durante una nueva consulta.
+  const [claveCargada, setClaveCargada] = useState("");
+  const [claveError, setClaveError] = useState("");
+  const claveConsulta = `${correo}|${numeroRegistro}|${aplicado.desde}|${aplicado.hasta}`;
 
+  // Paso 3: consultar SAP cuando sea posible y conservar la respuesta correcta
+  // en la base exclusiva de RRHH. Si no hay red, leer SOLO el mismo período
+  // del usuario autenticado. No usar datos guardados como confirmación de SAP.
   useFocusEffect(useCallback(() => {
     if (perfilLoading) {
       setLoading(true);
       return undefined;
     }
-    if (!nominaValida) {
-      setError(perfilError || "No encontramos tu número de nómina en SAP.");
+    if (!nominaValida || !correo) {
+      setError(perfilError || "No pudimos validar tu identidad y nómina con el perfil SAP.");
+      setClaveError(claveConsulta);
+      setClaveCargada("");
       setJornadas([]);
+      setOrigenDatos(null);
+      setCacheGuardadoEn(null);
       setLoading(false);
       return undefined;
     }
+
     let activo = true;
     const controller = new AbortController();
-    setLoading(true);
-    setError("");
-    setJornadas([]);
-    consultarHistorialRH({
+    const parametrosCache = {
       personalNumber: numeroRegistro,
+      email: correo,
       desde: aplicado.desde,
       hasta: aplicado.hasta,
-      signal: controller.signal,
-    }).then(({ jornadas: rows }) => {
-      if (activo) setJornadas(Array.isArray(rows) ? rows : []);
-    }).catch(e => {
+    };
+    setLoading(true);
+    setError("");
+
+    const mostrarResultado = (filas, origen, guardadoEn) => {
       if (!activo) return;
-      const status = e?.response?.status;
-      const mensaje = status === 401 ? "Tu sesión terminó. Inicia sesión nuevamente."
-        : status === 403 ? "No tienes permiso para consultar el historial."
-        : status === 404 ? "No se encontró AttendanceHistorySet en SAP QAS."
-        : status >= 500 ? "SAP no está disponible. Intenta más tarde."
-        : e?.message === "El historial excedió el límite de páginas. Consulta un período menor."
-          ? e.message
+      setJornadas(Array.isArray(filas) ? filas : []);
+      setOrigenDatos(origen);
+      setCacheGuardadoEn(guardadoEn || null);
+      setClaveCargada(claveConsulta);
+      setClaveError("");
+    };
+
+    const consultarCache = async () => {
+      try {
+        return await leerHistorialRHCache(parametrosCache);
+      } catch (e) {
+        if (__DEV__) console.warn("[RRHH][OFFLINE] No se pudo leer historial guardado:", e?.message || e);
+        return null;
+      }
+    };
+
+    const cargar = async () => {
+      try {
+        // La conexión física no significa necesariamente que SAP esté accesible;
+        // cuando el estado sea incierto intentamos la consulta real.
+        const red = await NetInfo.fetch();
+        if (!activo) return;
+        const sinConexion = red.isConnected === false || red.isInternetReachable === false;
+        if (sinConexion) {
+          const guardado = await consultarCache();
+          if (!activo) return;
+          if (!guardado) {
+            throw new Error("Sin conexión y sin historial guardado para este período. Conéctate a internet y consulta el historial al menos una vez.");
+          }
+          mostrarResultado(guardado.jornadas, "cache", guardado.guardadoEn);
+          return;
+        }
+
+        const { jornadas: filas } = await consultarHistorialRH({
+          personalNumber: numeroRegistro,
+          desde: aplicado.desde,
+          hasta: aplicado.hasta,
+          signal: controller.signal,
+        });
+        if (!activo) return;
+        const jornadasRecibidas = Array.isArray(filas) ? filas : [];
+        // Error de SQLite no convierte una consulta SAP exitosa en un error de pantalla.
+        try {
+          await guardarHistorialRHCache({ ...parametrosCache, jornadas: jornadasRecibidas });
+          if (__DEV__) console.log("[RRHH][CACHE] Historial SAP guardado correctamente.");
+        } catch (cacheError) {
+          if (__DEV__) console.warn("[RRHH][CACHE] No se pudo guardar el historial:", cacheError?.message || cacheError);
+        }
+        mostrarResultado(jornadasRecibidas, "sap", Date.now());
+      } catch (e) {
+        if (!activo) return;
+        const status = Number(e?.response?.status || 0);
+        const texto = String(e?.message || "");
+        const codigo = String(e?.code || "");
+        // Solo usar copia local ante ausencia de red o fallos de transporte.
+        // Nunca ocultar un 401/403, un rechazo de SAP o errores de validación.
+        const falloDeRed = !status && (
+          /ERR_NETWORK|ECONNABORTED|ETIMEDOUT|ENETUNREACH/i.test(codigo) ||
+          /network error|network request failed|timeout|timed out|sin conexi[oó]n/i.test(texto)
+        );
+        if (falloDeRed) {
+          const guardado = await consultarCache();
+          if (!activo) return;
+          if (guardado) {
+            mostrarResultado(guardado.jornadas, "cache", guardado.guardadoEn);
+            return;
+          }
+        }
+        const mensaje = status === 401 ? "Tu sesión terminó. Inicia sesión nuevamente."
+          : status === 403 ? "No tienes permiso para consultar el historial."
+          : status === 404 ? "No se encontró AttendanceHistorySet en SAP QAS."
+          : status >= 500 ? "SAP no está disponible. Intenta más tarde."
+          : texto.startsWith("Sin conexión y sin historial guardado") ? texto
+          : texto === "El historial excedió el límite de páginas. Consulta un período menor." ? texto
           : "No pudimos consultar las asistencias. Verifica tu conexión e inténtalo de nuevo.";
-      setError(mensaje);
-    }).finally(() => { if (activo) setLoading(false); });
+        setError(mensaje);
+        setClaveError(claveConsulta);
+      } finally {
+        if (activo) setLoading(false);
+      }
+    };
+    cargar();
     return () => { activo = false; controller.abort(); };
-  }, [numeroRegistro, nominaValida, perfilLoading, perfilError,
-    aplicado.desde, aplicado.hasta, aplicado.version]));
+  }, [numeroRegistro, nominaValida, perfilLoading, perfilError, correo,
+    aplicado.desde, aplicado.hasta, aplicado.version, claveConsulta]));
+
+  // Durante una actualización del MISMO período se conservan las tarjetas
+  // confirmadas con un aviso de actualización. Al cambiar el período, las tarjetas
+  // anteriores desaparecen de inmediato y solo aparece el spinner.
+  const datosDelPeriodo = !perfilLoading && claveCargada === claveConsulta;
+  const errorDelPeriodo = !perfilLoading && !loading && !!error && claveError === claveConsulta;
+  const actualizandoPeriodo = loading && datosDelPeriodo && jornadas.length > 0;
+  const consultando = perfilLoading || loading || (!datosDelPeriodo && !errorDelPeriodo);
+  const mostrarJornadas = datosDelPeriodo && !errorDelPeriodo && (!consultando || actualizandoPeriodo);
 
   // Una selección en el calendario o en las listas lanza directamente la consulta.
   // Se incrementa version incluso si se vuelve a elegir el mismo día, mes o año.
@@ -228,23 +342,34 @@ export default function RHHistorial() {
 
   const Encabezado = <View style={s.topContent}>
     {Filtros}
-    {!loading && !error && <View style={s.summary}>
+    {mostrarJornadas && <View style={s.summary}>
       <Text style={s.summaryCount}>{jornadas.length} {jornadas.length === 1 ? "día registrado" : "días registrados"}</Text>
     </View>}
-    {loading && <View style={s.stateCard}>
-      <ActivityIndicator size="large" color={C.red}/>
-      <Text style={s.stateText}>Consultando tus asistencias en SAP…</Text>
+    {mostrarJornadas && origenDatos === "cache" && <View style={s.offlineNotice}>
+      <Ionicons name="cloud-offline-outline" size={19} color={C.sub}/>
+      <Text style={s.offlineNoticeText}>
+        Información guardada en este dispositivo{cacheGuardadoEn ? ` · Actualizada: ${new Date(cacheGuardadoEn).toLocaleString("es-MX")}` : ""}.
+        Puede haber registros más recientes en SAP.
+      </Text>
     </View>}
-    {!loading && !!error && <View style={s.stateCard}>
+    {consultando && <View style={[s.stateCard, actualizandoPeriodo && s.stateCompact]} accessibilityLiveRegion="polite">
+      <ActivityIndicator size={actualizandoPeriodo ? "small" : "large"} color={C.red}/>
+      <Text style={s.stateText}>{perfilLoading ? "Consultando tu perfil en SAP…" : actualizandoPeriodo
+        ? "Actualizando historial en SAP; se muestran los datos de la última consulta confirmada."
+        : "Consultando tus asistencias en SAP…"}</Text>
+    </View>}
+    {errorDelPeriodo && <View style={s.stateCard}>
       <Ionicons name="alert-circle-outline" size={31} color={C.danger}/>
       <Text style={s.sectionTitle}>No se pudo cargar el historial</Text>
       <Text style={s.stateText}>{error}</Text>
       <Boton title="Reintentar" icon="refresh-outline" outline onPress={consultarDeNuevo}/>
     </View>}
-    {!loading && !error && jornadas.length === 0 && <View style={s.stateCard}>
+    {!consultando && !errorDelPeriodo && datosDelPeriodo && jornadas.length === 0 && <View style={s.stateCard}>
       <Ionicons name="calendar-clear-outline" size={32} color={C.sub}/>
       <Text style={s.sectionTitle}>Sin registros</Text>
-      <Text style={s.stateText}>No encontramos asistencias para el período consultado.</Text>
+      <Text style={s.stateText}>{origenDatos === "cache"
+        ? "La última copia guardada no contiene asistencias de este período."
+        : "No encontramos asistencias para el período consultado."}</Text>
     </View>}
   </View>;
 
@@ -264,7 +389,7 @@ export default function RHHistorial() {
       </Pressable>
     </View>
 
-    <FlatList data={loading || error ? [] : jornadas}
+    <FlatList data={mostrarJornadas ? jornadas : []}
       keyExtractor={item => `${item.personalNumber}-${item.date}`}
       renderItem={({ item }) => <TarjetaJornada jornada={item}/>}
       ListHeaderComponent={Encabezado}
@@ -371,8 +496,8 @@ const s = StyleSheet.create({
   headerSub: { fontSize: 11, color: C.sub, marginTop: 3 },
   reload: { width: 38, height: 38, borderRadius: 10, backgroundColor: C.pale,
     alignItems: "center", justifyContent: "center" },
-  content: { padding: 16, paddingBottom: 32, gap: 13 },
-  topContent: { gap: 14 },
+  content: { paddingHorizontal: 13, paddingTop: 13, paddingBottom: 30, gap: 10 },
+  topContent: { gap: 12 },
   sectionTitle: { fontSize: 16, fontWeight: "800", color: C.ink },
   filterCard: { backgroundColor: C.white, borderWidth: 1, borderColor: C.border,
     borderRadius: 14, padding: 10, gap: 8 },
@@ -397,24 +522,41 @@ const s = StyleSheet.create({
   summaryCount: { color: C.ink, fontWeight: "800", fontSize: 13 },
   stateCard: { borderRadius: 17, backgroundColor: C.white, borderWidth: 1,
     borderColor: C.border, padding: 26, alignItems: "center", gap: 13 },
+  stateCompact: { padding: 12, flexDirection: "row", justifyContent: "center" },
   stateText: { fontSize: 12.5, color: C.sub, lineHeight: 19, textAlign: "center" },
-  dayCard: { borderRadius: 17, backgroundColor: C.white, borderColor: C.border,
-    borderWidth: 1, padding: 15, gap: 13 },
-  dayHeader: { flexDirection: "row", alignItems: "center", gap: 11 },
-  calendarIcon: { backgroundColor: C.pale, borderRadius: 12, width: 43, height: 43,
-    alignItems: "center", justifyContent: "center" },
-  dayHeaderText: { flex: 1, gap: 3 },
+  offlineNotice: { flexDirection: "row", alignItems: "center", gap: 9,
+    borderRadius: 12, borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.soft, paddingHorizontal: 12, paddingVertical: 10 },
+  offlineNoticeText: { flex: 1, fontSize: 11.5, lineHeight: 17, color: C.sub },
+  // Una tarjeta por día: acento rojo y fecha destacada delimitan cada jornada.
+  dayCard: { backgroundColor: C.white, borderRadius: 14, borderWidth: 1,
+    borderColor: C.border, borderLeftWidth: 3, borderLeftColor: C.red,
+    paddingHorizontal: 11, paddingTop: 10, paddingBottom: 11, gap: 9 },
+  dayHeader: { flexDirection: "row", alignItems: "center", gap: 9, minHeight: 47 },
+  dateBlock: { backgroundColor: C.pale, borderRadius: 9, width: 42, height: 47,
+    alignItems: "center", justifyContent: "center", gap: 0 },
+  dateNumber: { color: C.red, fontSize: 19, fontWeight: "800", lineHeight: 23 },
+  dateMonth: { color: C.red, fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
+  dayHeaderText: { flex: 1, minWidth: 0, gap: 2 },
   weekday: { color: C.ink, fontWeight: "800", fontSize: 14, textTransform: "capitalize" },
-  dayDate: { color: C.sub, fontSize: 12, textTransform: "capitalize" },
-  statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    gap: 12, backgroundColor: C.soft, borderRadius: 10, padding: 10 },
-  statusLabel: { color: C.sub, fontWeight: "600", fontSize: 11.5 },
-  statusValue: { color: C.ink, fontWeight: "800", fontSize: 11.5, flexShrink: 1, textAlign: "right" },
-  timesGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 9 },
-  timeCard: { width: "48.5%", padding: 11, backgroundColor: C.soft,
-    borderRadius: 11, borderWidth: 1, borderColor: C.border, gap: 8 },
-  timeLabel: { color: C.sub, fontSize: 11 },
-  timeValue: { fontSize: 17, fontWeight: "800", color: C.ink },
+  dayDate: { color: C.sub, fontSize: 10.5, textTransform: "capitalize" },
+  statusChip: { maxWidth: 105, minHeight: 23, borderRadius: 8,
+    backgroundColor: C.soft, paddingHorizontal: 8, paddingVertical: 5,
+    justifyContent: "center", alignItems: "center" },
+  statusChipPresent: { backgroundColor: C.greenSoft },
+  statusChipAbsent: { backgroundColor: C.redSoft },
+  statusValue: { color: C.ink, fontWeight: "800", fontSize: 9.5, textAlign: "center" },
+  statusValuePresent: { color: C.green },
+  statusValueAbsent: { color: C.danger },
+  // Una sola superficie con divisores discretos para las cuatro horas.
+  timesGrid: { flexDirection: "row", flexWrap: "wrap", backgroundColor: C.soft,
+    borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden" },
+  timeCell: { width: "50%", minHeight: 47, paddingHorizontal: 10,
+    paddingVertical: 6, justifyContent: "center", gap: 2 },
+  timeCellLeft: { borderRightWidth: 1, borderRightColor: C.border },
+  timeCellTop: { borderBottomWidth: 1, borderBottomColor: C.border },
+  timeLabel: { color: C.sub, fontSize: 10.5 },
+  timeValue: { fontSize: 14.5, fontWeight: "800", color: C.ink },
   footer: { marginTop: 5, marginBottom: 12 },
   overlay: { flex: 1, backgroundColor: "#0007", padding: 20, justifyContent: "center" },
   modalCard: { backgroundColor: C.white, padding: 17, borderRadius: 18, gap: 14,
