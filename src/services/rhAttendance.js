@@ -104,11 +104,10 @@ export async function prepararMarcacionRH({ empleado, personalNumber, email, typ
     Latitude: coord(gps.latitude),
     Longitude: coord(gps.longitude),
     GeoStatus: "", IsLate: "", Id_log: "", StatusReq: "", Message: "",
-    // Contrato solicitado para AttendanceRecordSet QAS:
-    // Viaje de negocios: DateTo=inicio y DateFrom=finalización (orden indicado).
+    // Viaje de negocios: DateFrom = inicio; DateTo = fin del viaje.
     // Presencial/HomeOffice: ambos campos coinciden con EnterDate.
-    DateTo: esViaje ? fechaInicioViaje : EnterDate,
-    DateFrom: esViaje ? fechaFinViaje : EnterDate,
+    DateFrom: esViaje ? fechaInicioViaje : EnterDate,
+    DateTo: esViaje ? fechaFinViaje : EnterDate,
   };
   return { payload, gpsAccuracyMeters: gps.accuracyMeters, evaluacion };
 }

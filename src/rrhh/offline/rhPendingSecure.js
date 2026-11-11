@@ -20,6 +20,7 @@ import {
   guardarMarcacionPendienteRH,
   listarMarcacionesPendientesRH,
   leerMarcacionProtegidaRH,
+  eliminarMarcacionConfirmadaRH,
 } from "./rhPendingDb";
 
 const PREFIJO_REFERENCIA = "enc:v1:ss:";
@@ -87,6 +88,26 @@ function validarSolicitud({ personalNumber, email, fechaJornada, payload }) {
   return { clave, tipo };
 }
 
+// Justificacion de retardo o salida anticipada. Nunca se guarda en SQLite en claro.
+function validarJustificacion(justificacion, payload) {
+  if (justificacion == null) return null;
+  if (!justificacion || typeof justificacion !== "object" || Array.isArray(justificacion) ||
+      !["P10", "P20"].includes(payload.RegisterType)) {
+    throw Error("RRHH offline: justificacion incompatible con la marcacion.");
+  }
+  const razon = s(justificacion.IncidentType || justificacion.ReasonType);
+  const texto = s(justificacion.Comment);
+  if (nomina(justificacion.PersonalNumber) !== nomina(payload.PersonalNumber) ||
+      justificacion.WorkDate !== payload.EnterDate ||
+      justificacion.RegisterHourLate !== payload.EnterHour ||
+      justificacion.RegisterType !== payload.RegisterType ||
+      !["Personal", "Laboral"].includes(razon) || texto.length < 1 || texto.length > 500 ||
+      !["", "X"].includes(s(justificacion.Istimepay))) {
+    throw Error("RRHH offline: los datos de justificacion no coinciden con la hora y el movimiento originales.");
+  }
+  return justificacion;
+}
+
 function claveDesdeReferencia(referencia) {
   if (typeof referencia !== "string" ||
       !/^enc:v1:ss:rh\.pending\.[a-f0-9]{32}$/.test(referencia)) {
@@ -109,9 +130,10 @@ async function asegurarAlmacenSeguro() {
  * fechaJornada de obtenerTurnoDelDia. No aceptar estos campos desde formulario.
  */
 export async function guardarSolicitudRHProtegida({
-  personalNumber, email, fechaJornada, payload,
+  personalNumber, email, fechaJornada, payload, justificacion = null,
 }) {
   const { clave, tipo } = validarSolicitud({ personalNumber, email, fechaJornada, payload });
+  validarJustificacion(justificacion, payload);
   const id = `${clave}|${fechaJornada}|${tipo}`;
   if (guardadosEnCurso.has(id)) {
     throw Error("RRHH offline: ya se esta guardando esta marcacion.");
@@ -124,7 +146,8 @@ export async function guardarSolicitudRHProtegida({
     if (anterior) return { ...anterior, yaExistia: true };
 
     await asegurarAlmacenSeguro();
-    const json = JSON.stringify(payload);
+    // Formato compatible con registros antiguos (que guardaban payload directamente).
+    const json = JSON.stringify(justificacion ? { version: 2, payload, justificacion } : payload);
     // Los payloads de AttendanceRecordSet son pequenos. Fallar antes de
     // guardar si algun cambio en el servicio envia contenido excesivo.
     if (json.length > 1800) {
@@ -153,6 +176,7 @@ export async function guardarSolicitudRHProtegida({
         horaMarcacion: payload.EnterHour,
         registerType: tipo,
         payloadProtegido: referencia,
+        requiereJustificacion: !!justificacion,
       });
     } catch (_) {
       throw Error("RRHH offline: no se pudo CONFIRMAR el guardado. Revisa pendientes antes de intentar otra vez.");
@@ -182,9 +206,11 @@ export async function leerSolicitudRHProtegida({ personalNumber, email, id }) {
   if (!json) {
     throw Error("RRHH offline: comprobante protegido no disponible. Requiere revision de RH.");
   }
-  let payload;
-  try { payload = JSON.parse(json); }
+  let guardado;
+  try { guardado = JSON.parse(json); }
   catch (_) { throw Error("RRHH offline: comprobante protegido dañado."); }
+  const payload = guardado?.version === 2 ? guardado.payload : guardado;
+  const justificacion = guardado?.version === 2 ? guardado.justificacion : null;
   const valido = validarSolicitud({
     personalNumber, email, fechaJornada: fila.fechaJornada, payload,
   });
@@ -192,9 +218,36 @@ export async function leerSolicitudRHProtegida({ personalNumber, email, id }) {
       payload.EnterHour !== fila.horaMarcacion) {
     throw Error("RRHH offline: los datos del comprobante no coinciden con el registro local.");
   }
+  validarJustificacion(justificacion, payload);
+  if (fila.justificacionEstado !== "no_aplica" && !justificacion) {
+    throw Error("RRHH offline: falta el comprobante protegido de justificacion.");
+  }
   const { payloadProtegido, ...metadatos } = fila;
-  return { ...metadatos, payload };
+  return { ...metadatos, payload, justificacion };
 }
 
 // Para pantallas se usa listarMarcacionesPendientesRH (sin GPS).
 // NO existe envio automatico en este modulo.
+
+
+/**
+ * Elimina el comprobante protegido ÚNICAMENTE después de que SAP confirmó
+ * AttendanceRecordSet y, cuando corresponde, JustificationLogSet.
+ * No se llama para estados inciertos, rechazados o pendientes.
+ *
+ * Primero elimina el secreto y después la fila SQLite. Si SQLite fallara,
+ * queda una fila CONFIRMADA que se puede volver a limpiar; nunca se perderá
+ * un comprobante que todavía necesite reenvío.
+ */
+export async function finalizarSolicitudRHConfirmada({ personalNumber, email, id }) {
+  const fila = await leerMarcacionProtegidaRH({ personalNumber, email, id });
+  if (!fila) return false;
+  if (fila.estado !== "confirmado" ||
+      !["no_aplica", "confirmado"].includes(fila.justificacionEstado)) {
+    return false;
+  }
+  const clave = claveDesdeReferencia(fila.payloadProtegido);
+  await asegurarAlmacenSeguro();
+  await SecureStore.deleteItemAsync(clave);
+  return eliminarMarcacionConfirmadaRH({ personalNumber, email, id });
+}

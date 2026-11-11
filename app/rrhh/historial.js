@@ -2,7 +2,7 @@
 // Historial de asistencias RRHH: consultas SAP QAS por día, mes o año.
 // Cada tarjeta representa WorkDate y muestra las cuatro horas consolidadas.
 // No utiliza AsyncStorage y no modifica marcaciones existentes.
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView,
   SafeAreaView, StatusBar, StyleSheet, Text, View,
@@ -13,7 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useSapEmployee } from "../../src/context/SapEmployeeContext";
 import { consultarHistorialRH, fechaLocalRH } from "../../src/services/rhHistory";
-import { guardarHistorialRHCache, leerHistorialRHCache } from "../../src/rrhh/offline/rhOfflineDb";
+import { guardarHistorialRHCache, leerHistorialRHCache,
+  iniciarConsultaHistorialRH } from "../../src/rrhh/offline/rhOfflineDb";
 
 const C = {
   bg: "#F5F6F8", white: "#FFFFFF", ink: "#202733", sub: "#647082",
@@ -164,6 +165,21 @@ export default function RHHistorial() {
   const [claveError, setClaveError] = useState("");
   const claveConsulta = `${correo}|${numeroRegistro}|${aplicado.desde}|${aplicado.hasta}`;
 
+  // Si se recupera/pierde internet con esta pantalla abierta, consultar
+  // nuevamente el origen correcto sin esperar a navegar hacia otra vista.
+  const redAnterior = useRef(null);
+  useEffect(() => {
+    const cancelar = NetInfo.addEventListener(red => {
+      const online = red.isConnected === true && red.isInternetReachable !== false;
+      if (redAnterior.current !== null && redAnterior.current !== online) {
+        setAplicado(prev => ({ ...prev, version: prev.version + 1 }));
+      }
+      redAnterior.current = online;
+    });
+    return () => cancelar?.();
+  }, []);
+
+
   // Paso 3: consultar SAP cuando sea posible y conservar la respuesta correcta
   // en la base exclusiva de RRHH. Si no hay red, leer SOLO el mismo período
   // del usuario autenticado. No usar datos guardados como confirmación de SAP.
@@ -223,23 +239,27 @@ export default function RHHistorial() {
           const guardado = await consultarCache();
           if (!activo) return;
           if (!guardado) {
-            throw new Error("Sin conexión y sin historial guardado para este período. Conéctate a internet y consulta el historial al menos una vez.");
+            throw new Error("No hay una copia offline que cubra este período. La aplicación prepara automáticamente el mes actual al iniciar sesión con internet; verifica que aparezca 'Modo offline listo' antes de desconectarte.");
           }
+          if (__DEV__) console.log("[RRHH][OFFLINE] Historial leído desde SQLite.");
           mostrarResultado(guardado.jornadas, "cache", guardado.guardadoEn);
           return;
         }
 
+        const ticketConsulta = iniciarConsultaHistorialRH();
         const { jornadas: filas } = await consultarHistorialRH({
           personalNumber: numeroRegistro,
           desde: aplicado.desde,
           hasta: aplicado.hasta,
           signal: controller.signal,
+          scheduleDetail: perfilSap?.scheduleDetail || "",
         });
         if (!activo) return;
         const jornadasRecibidas = Array.isArray(filas) ? filas : [];
         // Error de SQLite no convierte una consulta SAP exitosa en un error de pantalla.
         try {
-          await guardarHistorialRHCache({ ...parametrosCache, jornadas: jornadasRecibidas });
+          await guardarHistorialRHCache({ ...parametrosCache,
+            jornadas: jornadasRecibidas, ticketConsulta });
           if (__DEV__) console.log("[RRHH][CACHE] Historial SAP guardado correctamente.");
         } catch (cacheError) {
           if (__DEV__) console.warn("[RRHH][CACHE] No se pudo guardar el historial:", cacheError?.message || cacheError);
@@ -268,7 +288,7 @@ export default function RHHistorial() {
           : status === 403 ? "No tienes permiso para consultar el historial."
           : status === 404 ? "No se encontró AttendanceHistorySet en SAP QAS."
           : status >= 500 ? "SAP no está disponible. Intenta más tarde."
-          : texto.startsWith("Sin conexión y sin historial guardado") ? texto
+          : texto.startsWith("No hay una copia offline") ? texto
           : texto === "El historial excedió el límite de páginas. Consulta un período menor." ? texto
           : "No pudimos consultar las asistencias. Verifica tu conexión e inténtalo de nuevo.";
         setError(mensaje);
@@ -280,7 +300,7 @@ export default function RHHistorial() {
     cargar();
     return () => { activo = false; controller.abort(); };
   }, [numeroRegistro, nominaValida, perfilLoading, perfilError, correo,
-    aplicado.desde, aplicado.hasta, aplicado.version, claveConsulta]));
+    perfilSap?.scheduleDetail, aplicado.desde, aplicado.hasta, aplicado.version, claveConsulta]));
 
   // Durante una actualización del MISMO período se conservan las tarjetas
   // confirmadas con un aviso de actualización. Al cambiar el período, las tarjetas

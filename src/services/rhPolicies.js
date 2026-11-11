@@ -117,6 +117,34 @@ export function obtenerTurnoDelDia(scheduleDetail, fecha = new Date()) {
     razon: `No hay turno programado para ${NAMES[fecha.getDay()]}.` };
 }
 
+// Los valores se reciben del EmployeeSet. Solo los códigos 01 a 07 tienen
+// reglas especiales en RRHH. Otros códigos (incluidos BA, CO y EV) no
+// provocan bloqueo por RelationJob; continúan las reglas normales de la app.
+const DESCRIPCIONES_RELACION_RH = Object.freeze({
+  "01": "VACACIONES",
+  "02": "HOME OFFICE",
+  "03": "INCAPACIDAD",
+  "04": "VIAJE DE NEGOCIOS",
+  "05": "CUMPLEAÑOS",
+  "06": "SANCIONADO",
+  "07": "BAJA",
+});
+
+export function obtenerRelacionLaboralRH(empleado) {
+  const original = String(empleado?.relationJob ?? "").trim().toUpperCase().split(/\s+/)[0];
+  const codigo = /^\d$/.test(original) ? `0${original}` : original;
+  const descripcionSAP = String(empleado?.relationJobDescription ?? "").trim();
+  const descripcion = descripcionSAP || DESCRIPCIONES_RELACION_RH[codigo] || codigo;
+  return {
+    codigo,
+    descripcion,
+    homeOffice: codigo === "02",
+    viaje: codigo === "04",
+    // 02 (HO) y 04 (VN) tienen sus flujos propios; solo 01,03,05,06,07 bloquean.
+    bloqueado: ["01", "03", "05", "06", "07"].includes(codigo),
+  };
+}
+
 export function clasificarEmpleadoRH(empleado) {
   const activo = String(empleado?.status ?? "").trim() === "3";
   const grupo = String(empleado?.groupPerson || "").trim().toUpperCase();
@@ -125,16 +153,24 @@ export function clasificarEmpleadoRH(empleado) {
   const canal = String(empleado?.authorisedRegister || "").trim().toUpperCase();
   const canalApp = ["APP", "AMBOS"].includes(canal);
   const soloBtp = canal === "BTP";
+  const relacion = obtenerRelacionLaboralRH(empleado);
   let razon = "";
-  if (!activo) razon = `Empleado no activo: ${empleado?.descriptionStatus || empleado?.status || "sin estatus"}.`;
+  if (relacion.bloqueado) {
+    razon = `No puedes registrar asistencia. Estatus laboral: ${relacion.descripcion}.`;
+  } else if (!activo) razon = `Empleado no activo: ${empleado?.descriptionStatus || empleado?.status || "sin estatus"}.`;
   else if (!confianza && !sindicalizado) razon = "SAP no devolvió GroupPerson X o Y para este empleado.";
   else if (soloBtp) razon = "Tu asistencia se registra mediante el monitor BTP; puedes consultar aquí tus datos e historial.";
   else if (!canalApp) razon = "SAP no autorizó el registro de asistencia desde la aplicación. Consulta con Recursos Humanos.";
-  return { habilitado: activo && (confianza || sindicalizado) && canalApp,
-    activo, grupo, confianza, sindicalizado, canal, canalApp, soloBtp, razon };
+  return { habilitado: !razon && activo && (confianza || sindicalizado) && canalApp,
+    activo, grupo, confianza, sindicalizado, canal, canalApp, soloBtp, relacion, razon };
 }
 export function modalidadesPermitidasRH(empleado) {
   const p = clasificarEmpleadoRH(empleado);
+  if (!p.habilitado) return [];
+  // RelationJob 02: se marca únicamente entrada y salida, sin comida.
+  if (p.relacion.homeOffice) return ["HomeOffice"];
+  // RelationJob 04: seleccionar período y registrar únicamente P10.
+  if (p.relacion.viaje) return ["Viaje de negocios"];
   return p.confianza ? ["Presencial", "HomeOffice", "Viaje de negocios"] : ["Presencial"];
 }
 export function codigoModalidadRH(modalidad) {
@@ -183,6 +219,13 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
   const p = clasificarEmpleadoRH(empleado);
   if (!p.habilitado) return { permitido: false, mensaje: p.razon };
   if (!TIPOS_RH[tipo]) return { permitido: false, mensaje: "Tipo de registro desconocido." };
+  // No permitir cambiar de modalidad para eludir el estatus del EmployeeSet.
+  if (p.relacion.homeOffice && modalidad !== "HomeOffice") {
+    return { permitido: false, mensaje: "Tu estatus es HOME OFFICE. Registra únicamente entrada y salida en esa modalidad." };
+  }
+  if (p.relacion.viaje && (modalidad !== "Viaje de negocios" || tipo !== "entrada")) {
+    return { permitido: false, mensaje: "Tu estatus es VIAJE DE NEGOCIOS. Selecciona el período y registra únicamente la entrada inicial." };
+  }
   if (p.sindicalizado && (tipo === "comida_inicio" || tipo === "comida_fin")) {
     return { permitido: false, mensaje: "El personal sindicalizado únicamente registra entrada y salida." };
   }
@@ -242,7 +285,7 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
     if (inicioComida) return { permitido: false, mensaje: "Ya registraste inicio de comida en esta jornada." };
     // Se mantiene la regla previa de comida 12:00-13:00 para personal de confianza.
     if (p.confianza && (hora < 720 || hora > 780)) {
-      return { permitido: false, mensaje: "El personal dispone de una hora de comida dentro del horario de 12:00 a 14:00." };
+      return { permitido: false, mensaje: "Confianza: inicia la comida de 12:00 a 13:00." };
     }
     return { permitido: true,
       aviso: "El regreso de comida se habilita inmediatamente y permanecerá disponible durante los siguientes 60 minutos." };

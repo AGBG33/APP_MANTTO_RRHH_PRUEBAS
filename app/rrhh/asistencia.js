@@ -13,8 +13,15 @@ import { router, useFocusEffect } from "expo-router";
 import { useSapEmployee } from "../../src/context/SapEmployeeContext";
 import { useAuth } from "../../src/context/AuthContext";
 import { capturarMarcacionOfflineRH } from "../../src/rrhh/offline/rhOfflineCapture";
-import { listarMarcacionesPendientesRH } from "../../src/rrhh/offline/rhPendingDb";
+import { leerHistorialRHCache, guardarHistorialRHCache,
+  iniciarConsultaHistorialRH } from "../../src/rrhh/offline/rhOfflineDb";
+import { listarMarcacionesPendientesRH, leerBitacoraMarcacionRH } from "../../src/rrhh/offline/rhPendingDb";
 import { suscribirSincronizacionRH, sincronizarPendientesRH } from "../../src/rrhh/offline/rhOfflineSync";
+import {
+  verificarMarcacionGuardadaRH,
+  autorizarReenvioMarcacionGuardadaRH,
+  autorizarReenvioJustificacionGuardadaRH,
+} from "../../src/rrhh/offline/rhOfflineReview";
 import { prepararMarcacionRH, enviarMarcacionRH } from "../../src/services/rhAttendance";
 import { prepararJustificacionRH, enviarJustificacionRH } from "../../src/services/rhJustifications";
 import { consultarHistorialRH } from "../../src/services/rhHistory";
@@ -22,7 +29,8 @@ import { obtenerEmpleadoRH } from "../../src/services/rhEmployees";
 import { esHomeOfficeEmpleadoRH, esViajeRH, semanaLaboralRH, mesLaboralRH,
   resumirReglasRH, movimientosDesdeHistoryRH } from "../../src/services/rhBusinessRules";
 import { clasificarEmpleadoRH, evaluarMarcacionRH, hoyISO, modalidadesPermitidasRH,
-  obtenerTurnoDelDia, registrosDeJornadaRH, horaCorta, codigoModalidadRH, TIPOS_RH } from "../../src/services/rhPolicies";
+  obtenerTurnoDelDia, registrosDeJornadaRH, fechaHoraRegistroRH,
+  horaCorta, codigoModalidadRH, TIPOS_RH } from "../../src/services/rhPolicies";
 
 const C = { bg: "#F5F6F8", white: "#FFFFFF", ink: "#202733", sub: "#647082",
   border: "#E5E8ED", red: "#D71920", pale: "#FFF1F2", green: "#18764C",
@@ -72,11 +80,13 @@ const fechaCorta = value => value
 const ultimo = (items, tipo) => items.filter(x => x.type === tipo).sort((a,b) =>
   `${b.date}|${b.time}`.localeCompare(`${a.date}|${a.time}`))[0] || null;
 
-function Btn({ title, icon, onPress, outline = false, disabled = false, danger = false }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
+function Btn({ title, icon, onPress, outline = false, disabled = false, danger = false, loading = false }) {
+  const inhabilitado = disabled || loading;
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: inhabilitado }} disabled={inhabilitado} onPress={onPress}
     style={({ pressed }) => [s.btn, outline && s.btnOutline, danger && s.btnDanger,
       disabled && s.disabled, pressed && s.pressed]}>
-    <Ionicons name={icon || "checkmark-circle-outline"} size={19} color={outline ? (danger ? C.danger : C.red) : C.white}/>
+    {loading ? <ActivityIndicator size="small" color={outline ? (danger ? C.danger : C.red) : C.white}/>
+      : <Ionicons name={icon || "checkmark-circle-outline"} size={19} color={outline ? (danger ? C.danger : C.red) : C.white}/>}
     <Text style={[s.btnText, outline && { color: danger ? C.danger : C.red }]}>{title}</Text>
   </Pressable>;
 }
@@ -116,6 +126,10 @@ export default function RHAsistencia() {
   const [extraOpen, setExtraOpen] = useState(false);
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // La sincronización solo muestra progreso en el botón; no recarga la pantalla.
+  const [sincronizandoRH, setSincronizandoRH] = useState(false);
+  const [actualizandoSAP, setActualizandoSAP] = useState(false);
+  const [mensajeSync, setMensajeSync] = useState("");
   const busyRef = useRef(false);
   const [dialog, setDialog] = useState(null);
   const [motivo, setMotivo] = useState("Laboral");
@@ -127,11 +141,21 @@ export default function RHAsistencia() {
   const [sinConexion, setSinConexion] = useState(null);
   const [colaRH, setColaRH] = useState({ identidad: "", filas: [], cargando: true, error: "" });
   const [revisionColaRH, setRevisionColaRH] = useState(0);
-  // La sincronizacion global funciona incluso fuera de esta pantalla.
-  // Solo refresca el historial SAP al TERMINAR una tanda con cambios.
+  // La misma pantalla usa la ultima jornada confirmada por SAP cuando no hay internet.
+  // Es solo una copia de consulta; JAMAS equivale a una nueva confirmacion SAP.
+  const [historialOffline, setHistorialOffline] = useState({
+    identidad: "", fechaJornada: "", jornadas: [], guardadoEn: 0,
+    cargando: false, error: "",
+  });
+  // El agente global sigue funcionando fuera de esta pantalla. Durante una
+  // sincronización manual NO lanzamos otra consulta simultánea a SAP: la misma
+  // acción refrescará la jornada una sola vez al terminar.
   useEffect(() => suscribirSincronizacionRH(evento => {
-    setRevisionColaRH(n => n + 1);
-    if (evento.evento === "finalizado") setSyncTick(n => n + 1);
+    if (busyRef.current) return;
+    if (evento.evento === "finalizado") {
+      setRevisionColaRH(n => n + 1);
+      setSyncTick(n => n + 1);
+    }
   }), []);
 
   // Las filas de otra cuenta NUNCA se muestran mientras cambia la sesión.
@@ -173,14 +197,24 @@ export default function RHAsistencia() {
   useEffect(() => {
     let activo = true;
     const identidad = `${personalNumber}|${correo.toLowerCase()}`;
-    setColaRH({ identidad, filas: [], cargando: true, error: "" });
+    // No vaciar los registros visibles mientras se actualiza la MISMA cuenta.
+    // Al cambiar de identidad sí se descarta inmediatamente la cola anterior.
+    setColaRH(prev => prev.identidad === identidad
+      ? prev : { identidad, filas: [], cargando: true, error: "" });
     if (!personalNumber || !mailOK(correo)) {
       setColaRH({ identidad, filas: [], cargando: false, error: "" });
       return () => { activo = false; };
     }
     listarMarcacionesPendientesRH({ personalNumber, email: correo })
       .then(filas => {
-        if (activo) setColaRH({ identidad, filas, cargando: false, error: "" });
+        if (!activo) return;
+        // Diagnostico sin correo, nomina ni payload: permite comprobar
+        // si el registro offline sigue almacenado en SQLite.
+        if (__DEV__) console.log("[RRHH][COLA][RESUMEN]", filas.map(f => ({
+          tipo: f.tipo, fechaJornada: f.fechaJornada,
+          estado: f.estado, justificacionEstado: f.justificacionEstado,
+        })));
+        setColaRH({ identidad, filas, cargando: false, error: "" });
       })
       .catch(err => {
         if (!activo) return;
@@ -249,15 +283,23 @@ export default function RHAsistencia() {
           else sinDatos = true; // No inferir modalidad de una marcación antigua.
         } else if (mode?.modalidad) {
           actual = mode.modalidad;
-        } else if (grupo.sindicalizado) {
-          actual = "Presencial";
+        } else if (grupo.sindicalizado && !grupo.relacion?.viaje) {
+          actual = grupo.relacion?.homeOffice ? "HomeOffice" : "Presencial";
         }
-        if (actual && !permitido.includes(actual)) sinDatos = true;
+        if (actual && !permitido.includes(actual)) {
+          if (previas.length > 0) sinDatos = true; // Registro previo incompatible: requiere revisión.
+          else actual = null; // Selección vieja: permitir elegir la modalidad SAP actual.
+        }
+        // Un estatus 02 habilitado sustituye la modalidad vieja PR de un
+        // sindicalizado que todavía no tiene movimientos en esta jornada.
+        if (!actual && grupo.sindicalizado && grupo.relacion?.homeOffice && !sinDatos) {
+          actual = "HomeOffice";
+        }
         setBloqueoModalidadSinDatos(sinDatos);
-        setModalidad(actual && permitido.includes(actual) ? actual : "Presencial");
+        setModalidad(actual && permitido.includes(actual) ? actual : (permitido[0] || "Presencial"));
         setModalidadGuardada(!sinDatos && actual && permitido.includes(actual) ? actual : null);
         setViajeDesde(mode?.desde || ""); setViajeHasta(mode?.hasta || "");
-        setExtraOpen(!actual && grupo.confianza);
+        setExtraOpen(!actual && (grupo.confianza || grupo.relacion?.viaje));
       } catch (e) {
         if (activo) {
           const message = String(e?.message || "");
@@ -301,6 +343,43 @@ export default function RHAsistencia() {
   const turno = empleadoVigente ? obtenerTurnoDelDia(empleadoVigente.scheduleDetail, ahora) : null;
   const fechaJornada = turno?.fechaJornada || today;
 
+  // Cargar el historial precargado al iniciar sesion. El motor de captura
+  // vuelve a validarlo de forma independiente al guardar cada movimiento.
+  useEffect(() => {
+    let activo = true;
+    const identidad = `${personalNumber}|${correo.toLowerCase()}`;
+    if (sinConexion !== true || !personalNumber || !mailOK(correo) || perfilLoading) {
+      setHistorialOffline({ identidad: "", fechaJornada: "", jornadas: [],
+        guardadoEn: 0, cargando: false, error: "" });
+      return () => { activo = false; };
+    }
+    setHistorialOffline({ identidad, fechaJornada, jornadas: [],
+      guardadoEn: 0, cargando: true, error: "" });
+    const mes = mesLaboralRH(fechaJornada);
+    leerHistorialRHCache({ personalNumber: numeroRegistro, email: correo,
+      desde: mes.desde, hasta: mes.hasta })
+      .then(copia => {
+        if (!activo) return;
+        setHistorialOffline({ identidad, fechaJornada,
+          jornadas: Array.isArray(copia?.jornadas) ? copia.jornadas : [],
+          guardadoEn: Number(copia?.guardadoEn || 0), cargando: false,
+          error: copia ? "" : "No se encontro una copia mensual de SAP para esta jornada." });
+      })
+      .catch(err => {
+        if (!activo) return;
+        if (__DEV__) console.warn("[RRHH][OFFLINE] Consulta jornada local:", err?.message || err);
+        setHistorialOffline({ identidad, fechaJornada, jornadas: [],
+          guardadoEn: 0, cargando: false, error: "No se pudo leer el historial guardado." });
+      });
+    return () => { activo = false; };
+  }, [sinConexion, personalNumber, numeroRegistro, correo, perfilLoading, fechaJornada]);
+
+  const historialLocalVigente = sinConexion === true && !historialOffline.cargando &&
+    historialOffline.identidad === `${personalNumber}|${correo.toLowerCase()}` &&
+    historialOffline.fechaJornada === fechaJornada && !!historialOffline.guardadoEn;
+  const jornadaCache = historialLocalVigente
+    ? historialOffline.jornadas.find(j => j.date === fechaJornada) || null : null;
+
   // La consulta mensual sirve para retardos + jornada de hoy; la semanal para la cuota HO.
   // Si toda la semana cabe en el mes, no se repite la petición.
   const obtenerEstadoSAP = useCallback(async (instante = new Date()) => {
@@ -314,21 +393,54 @@ export default function RHAsistencia() {
     const fecha = turnoActual?.fechaJornada || hoyISO(instante);
     const mes = mesLaboralRH(fecha);
     const semana = semanaLaboralRH(fecha);
+    const consultaMes = iniciarConsultaHistorialRH();
     const mesRespuesta = await consultarHistorialRH({ personalNumber: perfil.personalNumber,
-      desde: mes.desde, hasta: mes.hasta });
+      desde: mes.desde, hasta: mes.hasta,
+      scheduleDetail: perfil.scheduleDetail });
+    // El cache offline se actualiza con ESTA misma respuesta SAP (tambien si
+    // SAP devuelve la jornada sin salida). Antes solo se actualizaba la pantalla.
+    let cacheError = false;
+    try {
+      await guardarHistorialRHCache({ personalNumber: perfil.personalNumber,
+        email: correo, desde: mes.desde, hasta: mes.hasta,
+        jornadas: mesRespuesta.jornadas, ticketConsulta: consultaMes });
+    } catch (errorCache) {
+      cacheError = true;
+      if (__DEV__) console.warn("[RRHH][CACHE] No se actualizo copia mensual:", errorCache?.message || errorCache);
+    }
     const semanaIncluida = semana.desde >= mes.desde && semana.hasta <= mes.hasta;
-    const semanaRespuesta = semanaIncluida ? mesRespuesta : await consultarHistorialRH({
-      personalNumber: perfil.personalNumber, desde: semana.desde, hasta: semana.hasta,
-    });
+    let semanaRespuesta = mesRespuesta;
+    if (!semanaIncluida) {
+      const consultaSemana = iniciarConsultaHistorialRH();
+      semanaRespuesta = await consultarHistorialRH({ personalNumber: perfil.personalNumber,
+        desde: semana.desde, hasta: semana.hasta,
+        scheduleDetail: perfil.scheduleDetail });
+      try {
+        await guardarHistorialRHCache({ personalNumber: perfil.personalNumber,
+          email: correo, desde: semana.desde, hasta: semana.hasta,
+          jornadas: semanaRespuesta.jornadas, ticketConsulta: consultaSemana });
+      } catch (errorCache) {
+        cacheError = true;
+        if (__DEV__) console.warn("[RRHH][CACHE] No se actualizo copia semanal:", errorCache?.message || errorCache);
+      }
+    }
     const resumen = resumirReglasRH({ jornadasMes: mesRespuesta.jornadas,
       jornadasSemana: semanaRespuesta.jornadas, fechaJornada: fecha });
+    if (__DEV__) console.log("[RRHH][SAP][JORNADA]", {
+      fechaJornada: fecha,
+      fechaEnHistorial: resumen.jornadaSAP?.date || null,
+      entradaSAP: resumen.jornadaSAP?.p10Time || null,
+      salidaSAP: resumen.jornadaSAP?.p20Time || null,
+      consulta: "AttendanceHistorySet (mes)",
+    });
     return { verificado: true, cargando: false, error: "", perfil,
       jornadasMes: mesRespuesta.jornadas, jornadasSemana: semanaRespuesta.jornadas,
-      resumen, fechaJornada: fecha };
+      resumen, fechaJornada: fecha, cacheError };
   }, [personalNumber, correo]);
 
   useEffect(() => {
     if (!employee || perfilLoading) {
+      setActualizandoSAP(false);
       setEstadoSAP({ verificado: false, cargando: true, error: "", perfil: null,
         jornadasMes: [], jornadasSemana: [], resumen: null, fechaJornada: "" });
       return undefined;
@@ -336,43 +448,77 @@ export default function RHAsistencia() {
     // En ausencia de red no llamar EmployeeSet/AttendanceHistorySet: la pantalla
     // offline valida el cache directamente al capturar y no necesita un GET.
     if (sinConexion === true) {
+      setActualizandoSAP(false);
       setEstadoSAP({ verificado: false, cargando: false,
         error: "Sin conexión: las marcaciones quedarán guardadas solo en este dispositivo.",
         perfil: null, jornadasMes: [], jornadasSemana: [], resumen: null,
         fechaJornada: "" });
       return undefined;
     }
-    if (sinConexion === null) return undefined; // No consultar SAP hasta conocer la red.
+    if (sinConexion === null) {
+      setActualizandoSAP(false);
+      return undefined;
+    } // No consultar SAP hasta conocer la red.
     let activo = true;
-    setEstadoSAP(v => ({ ...v, verificado: false, cargando: true, error: "" }));
+    // Si ya consultamos esta jornada, conservarla visible mientras SAP responde.
+    // Solo la primera consulta muestra el spinner general de la pantalla.
+    setActualizandoSAP(true);
+    setEstadoSAP(v => {
+      const previa = v.verificado && !!v.resumen && v.fechaJornada === fechaJornada &&
+        norm(v.perfil?.personalNumber) === personalNumber;
+      return previa ? { ...v, cargando: false, error: "" }
+        : { ...v, verificado: false, cargando: true, error: "" };
+    });
     obtenerEstadoSAP(new Date()).then(estado => {
       if (activo) setEstadoSAP(estado);
     }).catch(() => {
       if (activo) setEstadoSAP(v => ({ ...v, verificado: false, cargando: false,
         error: "No pudimos verificar tus movimientos y reglas con SAP. Actualiza para intentarlo nuevamente." }));
-    });
+    }).finally(() => { if (activo) setActualizandoSAP(false); });
     return () => { activo = false; };
   }, [employee, perfilLoading, obtenerEstadoSAP, fechaJornada, syncTick, sinConexion]);
 
-  const colaPendienteRH = pendientesOffline.some(r => r.estado !== "confirmado");
-  const bloquearPorColaRH = cargandoColaRH || !!errorColaRH || colaPendienteRH;
+  const colaPendienteRH = pendientesOffline.some(r => r.estado !== "confirmado" ||
+    !["no_aplica", "confirmado"].includes(r.justificacionEstado));
   const pendientesJornadaRH = pendientesOffline.filter(r => r.fechaJornada === fechaJornada);
   const sapListo = sinConexion === false && estadoSAP.verificado && !estadoSAP.cargando && !perfilLoading &&
     estadoSAP.fechaJornada === fechaJornada && norm(estadoSAP.perfil?.personalNumber) === personalNumber;
-  const jornadaRemota = sapListo ? estadoSAP.resumen?.jornadaSAP : null;
+  const jornadaRemota = sapListo ? estadoSAP.resumen?.jornadaSAP :
+    sinConexion === true ? jornadaCache : null;
   const movimientosRemotos = useMemo(() =>
     jornadaRemota ? movimientosDesdeHistoryRH(jornadaRemota, turno) : [],
     [jornadaRemota, turno?.inicioMs, turno?.finMs, fechaJornada]);
-  const marcacionesConfirmadasCola = useMemo(() => pendientesOffline
-    .filter(f => f.estado === "confirmado" && !movimientosRemotos.some(m => m.registerType === f.tipo && m.jornadaDate === f.fechaJornada))
+  // Tanto online como offline, los pasos VERDES vienen EXCLUSIVAMENTE
+  // de AttendanceHistorySet (respuesta actual SAP o su ultima copia SQLite).
+  // Los acuses historicos de AsyncStorage y la cola se conservan para auditoria,
+  // pero NO agregan horas como si SAP continuara mostrandolas.
+  const activosParaVista = useMemo(() => activos.filter(r => r.sapState !== "accepted"), [activos]);
+  // Los acuses de la cola no se ocultan solo porque el POST devolvio OK.
+  // Un estado "confirmado" de la cola acredita el ACUSE del POST, pero
+  // no garantiza que la marcacion ya figure en AttendanceHistorySet.
+  // Solamente se oculta la copia local cuando SAP muestra el MISMO tipo,
+  // fecha de jornada Y hora. En caso contrario sigue visible en ambar,
+  // sin inventar una confirmacion en el historial ni repetir el POST.
+  const marcacionesPendientesVisuales = useMemo(() => pendientesOffline
+    .filter(f => {
+      if (!TIPO_DESDE_CODIGO[f.tipo]) return false;
+      if (f.estado !== "confirmado") return true;
+      return !movimientosRemotos.some(sap =>
+        sap.registerType === f.tipo && sap.jornadaDate === f.fechaJornada &&
+        String(sap.registerHour || "") === String(f.horaMarcacion || ""));
+    })
     .map(f => ({
-      id: `rh-sync:${f.id}`, personalNumber, date: f.fechaMarcacion,
-      time: f.horaMarcacion.slice(0, 5), registerHour: f.horaMarcacion,
+      id: `rh-pendiente:${f.id}`, personalNumber, date: f.fechaMarcacion,
+      time: String(f.horaMarcacion || "").slice(0, 5), registerHour: f.horaMarcacion,
       jornadaDate: f.fechaJornada, type: TIPO_DESDE_CODIGO[f.tipo], registerType: f.tipo,
-      modality: "Presencial", typeSession: "PR", sapState: "accepted", source: "RH_SYNC_CONFIRMED",
-    })), [pendientesOffline, movimientosRemotos, personalNumber]);
-  const registrosCombinados = useMemo(() => [...activos, ...movimientosRemotos, ...marcacionesConfirmadasCola],
-    [activos, movimientosRemotos, marcacionesConfirmadasCola]);
+      modality: modalidadGuardada || "Presencial",
+      typeSession: ({ Presencial: "PR", HomeOffice: "HO", "Viaje de negocios": "VN" })[modalidadGuardada] || "PR",
+      source: "RH_OFFLINE", estadoOffline: f.estado, sapState: "offline_pending",
+    })), [pendientesOffline, movimientosRemotos, personalNumber, modalidadGuardada]);
+  const registrosCombinados = useMemo(() => [
+    ...activosParaVista, ...movimientosRemotos, ...marcacionesPendientesVisuales,
+  ], [activosParaVista, movimientosRemotos, marcacionesPendientesVisuales]);
+
   const registrosParaValidar = useMemo(() => registrosCombinados.filter(r =>
     !(["sending", "uncertain", "rejected"].includes(r.sapState) &&
       movimientosRemotos.some(sap => sap.type === r.type))),
@@ -383,6 +529,22 @@ export default function RHAsistencia() {
   const pendientes = useMemo(() => deHoy.filter(r => ["sending", "uncertain", "rejected"].includes(r.sapState)), [deHoy]);
   // Si SAP ya confirmó la marcación, no mostrar un acuse local "pendiente" del mismo tipo.
   const pendientesReales = pendientes.filter(p => !movimientosRemotos.some(x => x.type === p.type));
+  const pendientesDeHoyVisuales = deHoy.filter(r => r.source === "RH_OFFLINE");
+  // Los acuses aceptados que aun NO se reflejan en SAP siguen por conciliar:
+  // no deben habilitar una segunda marcacion del mismo movimiento.
+  const acusesSinHistorial = pendientesDeHoyVisuales.some(r => r.estadoOffline === "confirmado");
+  // No permitir un segundo POST mientras exista un acuse de la misma jornada
+  // aceptado por el POST, pero aun ausente de AttendanceHistorySet.
+  const bloquearPorColaRH = cargandoColaRH || !!errorColaRH || colaPendienteRH || acusesSinHistorial;
+  const pasoVisible = tipo => ultimo(aceptados, tipo) || ultimo(pendientesDeHoyVisuales, tipo);
+  // Solo para avance VISUAL de la jornada. El envio y la conciliacion siguen
+  // usando la fuente real de cada movimiento; una cola pendiente no es SAP OK.
+  const entradaVista = pasoVisible("entrada");
+  const inicioComidaVista = pasoVisible("comida_inicio");
+  const regresoComidaVista = pasoVisible("comida_fin");
+  const salidaVista = pasoVisible("salida");
+  const hayPendientesRevisionOffline = pendientesOffline.some(p =>
+    ["enviando", "incierto", "revision", "rechazado"].includes(p.estado));
   const entrada = ultimo(aceptados, "entrada");
   const inicioComida = ultimo(aceptados, "comida_inicio");
   const regresoComida = ultimo(aceptados, "comida_fin");
@@ -412,8 +574,10 @@ export default function RHAsistencia() {
   // que SAP/RH determine su resultado: nunca asumir que un timeout = no guardado.
   const cuartoPendienteConfirmar = deHoy.some(r => r.type === "entrada" && r.fourthLate &&
     ["accepted", "sending", "uncertain", "rejected"].includes(r.sapState));
+  // El estatus 04 permite la PRIMERA entrada de viaje, pero no más movimientos.
+  // Antes se bloqueaba por el simple hecho de tener RelationJob=04.
   const bloqueadaJornadaSAP = sapListo && (estadoSAP.resumen?.inasistenciaSAP ||
-    viajeActivo || viajeYaEnviado || entradaFueCuarto || cuartoPendienteConfirmar);
+    (viajeActivo && !!entrada) || viajeYaEnviado || entradaFueCuarto || cuartoPendienteConfirmar);
   const cuotaHOUsada = !!(sapListo && estadoSAP.resumen?.homeOfficeUsadoSemana);
   const modalidades = empleadoVigente ? modalidadesPermitidasRH(empleadoVigente) : ["Presencial"];
   const modalidadConfirmadaLocal = aceptados.find(x => x.modality && x.source !== "SAP")?.modality;
@@ -423,18 +587,69 @@ export default function RHAsistencia() {
   // de modalidad ni solicitud de justificación en la app.
   const modalidadEfectiva = esCuartoAhora ? "Presencial" :
     (hoyEnHomeOffice ? "HomeOffice" :
-      (entrada ? (modalidadRegistrada || modalidadGuardada) : modalidadGuardada));
-  const huboEnvioHoy = deHoy.some(r => ["accepted", "sending", "uncertain", "rejected"].includes(r.sapState) && !!TIPOS_RH[r.type]);
+      (policy?.sindicalizado && policy?.relacion?.homeOffice ? "HomeOffice" :
+        (entrada ? (modalidadRegistrada || modalidadGuardada) : modalidadGuardada)));
+  const huboEnvioHoy = deHoy.some(r => ["accepted", "sending", "uncertain", "rejected", "offline_pending"].includes(r.sapState) && !!TIPOS_RH[r.type]);
   const modoBloqueado = huboEnvioHoy || busy || esCuartoAhora || bloqueadaJornadaSAP || hoyEnHomeOffice || bloquearPorColaRH;
-  const modalidadLista = (esCuartoAhora || (!!modalidadEfectiva && !bloqueoModalidadSinDatos &&
-    !(modalidadEfectiva === "HomeOffice" && cuotaHOUsada && !entrada))) &&
-    sapListo && !bloqueadaJornadaSAP;
+  const pantallaJornadaDisponible = sapListo || sinConexion === true;
+  const requiereElegirModalidad = !!(policy?.confianza || policy?.relacion?.viaje);
+  const modalidadLista = sinConexion === true
+    ? !!((policy?.sindicalizado && !requiereElegirModalidad) ||
+        (modalidadGuardada && modalidades.includes(modalidadGuardada))) &&
+      !bloqueoModalidadSinDatos
+    : (esCuartoAhora || (!!modalidadEfectiva && !bloqueoModalidadSinDatos &&
+      !(modalidadEfectiva === "HomeOffice" && cuotaHOUsada && !entrada))) &&
+      sapListo && !bloqueadaJornadaSAP;
 
   const persistir = useCallback(async nuevos => {
     await AsyncStorage.setItem(storageKey, JSON.stringify(nuevos));
     setRecords(nuevos);
   }, [storageKey]);
   const revisar = tipo => {
+    if (sinConexion === true) {
+      if (cargandoColaRH || errorColaRH || historialOffline.cargando) {
+        return { permitido: false, mensaje: "Comprobando la informacion guardada de RRHH." };
+      }
+      if (!historialLocalVigente) return { permitido: false,
+        mensaje: "No hay historial mensual guardado para esta jornada. Conectate para actualizar la copia SAP." };
+      if (Date.now() - historialOffline.guardadoEn > 24 * 60 * 60 * 1000) {
+        return { permitido: false, mensaje: "La informacion guardada tiene mas de 24 horas. Debe actualizarse en SAP." };
+      }
+      if (hayPendientesRevisionOffline || pendientesReales.length) {
+        return { permitido: false, mensaje: "Existe una marcacion por revisar antes de continuar." };
+      }
+      if (!modalidadLista) return { permitido: false,
+        mensaje: "Confirma primero la modalidad de trabajo para la jornada." };
+      if (modalidadEfectiva !== "Presencial" && modalidadEfectiva !== "HomeOffice" &&
+          modalidadEfectiva !== "Viaje de negocios") return { permitido: false,
+        mensaje: "Modalidad no valida para captura sin internet." };
+      if (esViajeRH(empleadoVigente) && modalidadEfectiva !== "Viaje de negocios") return {
+        permitido: false, mensaje: "El perfil guardado requiere modalidad Viaje de negocios." };
+      if (esHomeOfficeEmpleadoRH(empleadoVigente) && modalidadEfectiva !== "HomeOffice") return {
+        permitido: false, mensaje: "El perfil guardado requiere modalidad Home Office." };
+      const resumenLocal = resumirReglasRH({ jornadasMes: historialOffline.jornadas,
+        jornadasSemana: historialOffline.jornadas, fechaJornada });
+      if (resumenLocal.inasistenciaSAP ||
+          (resumenLocal.homeOfficeHoy && modalidadEfectiva !== "HomeOffice")) {
+        return { permitido: false, mensaje: "La jornada guardada tiene un estado especial; requiere revision SAP." };
+      }
+      // Para validar la secuencia, las capturas pendientes cuentan como pasos
+      // locales previos. Solo el servicio de captura decide si se pueden guardar.
+      const secuenciaLocal = marcacionesPendientesVisuales
+        .filter(r => r.estadoOffline === "pendiente")
+        .map(r => ({ ...r, sapState: "accepted" }));
+      const registrosEvaluados = [...activosParaVista, ...movimientosRemotos,
+        ...secuenciaLocal];
+      // Rechazar marcaciones cronologicamente anteriores a la entrada, incluso
+      // cuando se modifica la hora del emulador. Turnos nocturnos usan fecha real.
+      if (tipo !== "entrada" && registrosEvaluados.some(r =>
+        r.type === "entrada" && (fechaHoraRegistroRH(r) || 0) > ahora.getTime())) {
+        return { permitido: false,
+          mensaje: "La hora del equipo es anterior a tu entrada. Para turnos nocturnos avanza tambien la fecha del emulador al dia siguiente." };
+      }
+      return evaluarMarcacionRH({ empleado: empleadoVigente, tipo,
+        registros: registrosEvaluados, ahora, modalidad: modalidadEfectiva });
+    }
     if (!sapListo) return { permitido: false, mensaje: estadoSAP.error || "Primero necesitamos verificar tus registros en SAP." };
     if (bloqueadaJornadaSAP) return { permitido: false,
       mensaje: viajeActivo || viajeYaEnviado ? "Tienes viaje de negocios registrado. No necesitas realizar más marcaciones." :
@@ -460,8 +675,14 @@ export default function RHAsistencia() {
       setViajeHasta(elegida);
     }
   };
-  const justificacionesSinConfirmar = deHoy.filter(r => r.source !== "SAP" &&
-    r.sapState === "accepted" && r.needsJustification && r.justificationState !== "accepted");
+  // Los acuses online se conservan para poder reintentar SOLO su justificacion,
+  // aunque no vuelvan a pintar pasos verdes en la linea de jornada.
+  // Solo habilitarla si el movimiento sigue apareciendo en SAP.
+  const justificacionesSinConfirmar = registrosDeJornadaRH(activos, turno, ahora)
+    .filter(r => r.source !== "SAP" && r.source !== "RH_SYNC_CONFIRMED" &&
+      r.sapState === "accepted" && r.needsJustification &&
+      r.justificationState !== "accepted" &&
+      (!sapListo || movimientosRemotos.some(sap => sap.type === r.type)));
 
   // Confirmacion LOCAL y explicita de la modalidad Presencial para personal
   // de confianza. El motor offline aun no admite HO ni viajes de negocios.
@@ -470,24 +691,148 @@ export default function RHAsistencia() {
     if (sinConexion !== false || busyRef.current || cargandoColaRH || !!errorColaRH) return;
     busyRef.current = true;
     setBusy(true);
+    setSincronizandoRH(true);
+    setMensajeSync("");
     try {
       const resultado = await sincronizarPendientesRH({
         personalNumber: numeroRegistro, email: correo, ensureValidToken,
       });
+      // Una sola recarga de la cola, sin vaciar temporalmente sus tarjetas.
       setRevisionColaRH(n => n + 1);
-      if (resultado.confirmados > 0) setSyncTick(n => n + 1);
-      const resumen = resultado.reason === "en_curso"
-        ? "Ya hay una sincronización en curso. Revisa los pendientes dentro de unos momentos."
-        : resultado.restantes === 0 && resultado.ok
-        ? "Todas las marcaciones de RRHH de este usuario están confirmadas por SAP."
-        : `Confirmadas en esta revisión: ${resultado.confirmados || 0}. ` +
-          `Pendientes o por revisar: ${resultado.restantes ?? "sin determinar"}.` +
-          (resultado.detail ? `\n${resultado.detail}` : "") +
-          (resultado.reason ? `\nEstado: ${resultado.reason}` : "");
-      Alert.alert("Sincronización RRHH", resumen);
+      if (resultado.reason === "en_curso") {
+        setMensajeSync("Ya se están sincronizando tus registros.");
+        return;
+      }
+      // Refrescar la fuente de verdad SIN incrementar syncTick: eso activaba
+      // una segunda consulta y ocultaba los pasos de la jornada.
+      if (resultado.ok || resultado.confirmados > 0) {
+        try {
+          const estadoNuevo = await obtenerEstadoSAP(new Date());
+          setEstadoSAP(estadoNuevo);
+        } catch (e) {
+          if (__DEV__) console.warn("[RRHH][SYNC] Consulta posterior:", e?.message || e);
+          setMensajeSync("Envío revisado. No se pudo actualizar el historial SAP.");
+          return;
+        }
+      }
+      setMensajeSync(resultado.ok && resultado.restantes === 0
+        ? "Sincronización finalizada."
+        : "Hay registros pendientes de revisión. Se conservaron sus datos.");
     } catch (e) {
-      Alert.alert("No se pudo sincronizar", String(e?.message || e).slice(0, 350));
+      if (__DEV__) console.warn("[RRHH][SYNC] Error:", e?.message || e);
+      setMensajeSync("No se completó la sincronización. Tus registros siguen guardados.");
+      setRevisionColaRH(n => n + 1);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+      setSincronizandoRH(false);
+    }
+  };
+
+  // Revisar en SAP ANTES de decidir si reenviar un comprobante local.
+  // No vuelve a pedir GPS, fecha, hora ni justificacion al empleado.
+  const ejecutarReenvioOffline = async (id, soloJustificacion = false) => {
+    if (sinConexion !== false || busyRef.current || cargandoColaRH || errorColaRH) return;
+    busyRef.current = true; setBusy(true);
+    try {
+      const parametros = { personalNumber: numeroRegistro, email: correo, id, ensureValidToken };
+      const respuesta = soloJustificacion
+        ? await autorizarReenvioJustificacionGuardadaRH({
+            ...parametros, confirmadaAusenciaConRH: true,
+          })
+        : await autorizarReenvioMarcacionGuardadaRH({
+            ...parametros, autorizacionExplicita: true,
+          });
+      setRevisionColaRH(n => n + 1);
+      if (!respuesta.reenvio) {
+        setSyncTick(n => n + 1);
+        Alert.alert("Registro encontrado", "SAP ya tiene esa marcación. No se volvió a enviar.");
+        return;
+      }
+      // El motor siempre extrae el JSON ORIGINAL de SecureStore. Nunca se
+      // fabrica otro comprobante con la hora actual ni nuevas coordenadas.
+      const resultado = await sincronizarPendientesRH({
+        personalNumber: numeroRegistro, email: correo, ensureValidToken,
+      });
+      setRevisionColaRH(n => n + 1);
+      setSyncTick(n => n + 1);
+      Alert.alert("Reenvío del comprobante guardado", resultado.reason === "en_curso"
+        ? "La sincronización ya está en curso. Consulta el estado en unos momentos."
+        : resultado.ok && resultado.restantes === 0
+          ? "SAP confirmó los registros y las justificaciones pendientes."
+          : `Se conservó el registro original. Estado: ${resultado.reason || "pendiente"}.` +
+            (resultado.detail ? `\n${resultado.detail}` : "") +
+            "\nPuedes volver a verificar el estado aquí.");
+    } catch (e) {
+      setRevisionColaRH(n => n + 1);
+      Alert.alert("No se pudo preparar el reenvío", String(e?.message || e).slice(0, 550));
     } finally { busyRef.current = false; setBusy(false); }
+  };
+
+  const verificarAntesDeReenviarOffline = async fila => {
+    if (sinConexion !== false || busyRef.current || cargandoColaRH || errorColaRH) return;
+    busyRef.current = true; setBusy(true);
+    try {
+      const v = await verificarMarcacionGuardadaRH({
+        personalNumber: numeroRegistro, email: correo, id: fila.id, ensureValidToken,
+      });
+      setRevisionColaRH(n => n + 1);
+      if (v.resultado === "encontrado") {
+        setSyncTick(n => n + 1);
+        Alert.alert("Marcación encontrada en SAP",
+          "La marcación original ya está registrada. Se conservó como confirmada sin hacer otro POST.");
+      } else if (v.resultado === "conflicto") {
+        Alert.alert("Diferencia con SAP",
+          `SAP registra este tipo de movimiento a las ${v.horaSAP}. ` +
+          `Tu comprobante original tiene ${fila.horaMarcacion}. ` +
+          "No es seguro reenviar: solicita una revisión de Recursos Humanos.");
+      } else if (v.resultado === "enviando") {
+        Alert.alert("Envío en curso", "Espera a que finalice la petición antes de verificarla.");
+      } else {
+        // Un GET sin movimiento no garantiza que ABAP no lo haya recibido;
+        // SOLO el empleado autoriza explícitamente repetir el MISMO POST.
+        Alert.alert("No aparece en el historial SAP",
+          `${fila.tipo} del ${fila.fechaMarcacion} a las ${fila.horaMarcacion}.\n\n` +
+          "La ausencia en el historial NO garantiza que SAP no haya recibido el envío anterior. " +
+          "Si Recursos Humanos confirmó que no existe, puedes reenviar exactamente el registro guardado, " +
+          "sin tomar otra foto, hora ni ubicación. ¿Autorizar el reenvío?", [
+            { text: "Cancelar", style: "cancel" },
+            { text: "Reenviar original", onPress: () => ejecutarReenvioOffline(fila.id) },
+          ]);
+      }
+    } catch (e) {
+      Alert.alert("No se pudo verificar en SAP", String(e?.message || e).slice(0, 550) +
+        "\nNo se reenviará hasta poder consultar SAP.");
+    } finally { busyRef.current = false; setBusy(false); }
+  };
+
+  const verErroresAnterioresOffline = async fila => {
+    try {
+      const eventos = await leerBitacoraMarcacionRH({
+        personalNumber: numeroRegistro, email: correo, id: fila.id,
+      });
+      const fallos = eventos.filter(e => !!e.detalle ||
+        ["rechazado", "incierto", "revision"].includes(e.estadoNuevo));
+      const texto = fallos.slice(0, 8).map(e => {
+        const fecha = new Date(Number(e.fechaEvento)).toLocaleString("es-MX");
+        return `${fecha} · ${e.etapa}: ${e.estadoNuevo}\n${e.detalle || "Sin detalle adicional"}`;
+      }).join("\n\n");
+      Alert.alert("Historial de intentos y errores", texto ||
+        (fila.ultimoError || fila.justificacionError || "Todavía no hay errores registrados."));
+    } catch (e) {
+      Alert.alert("Bitácora no disponible", String(e?.message || e).slice(0, 300));
+    }
+  };
+
+  const confirmarReenvioJustificacionOffline = fila => {
+    Alert.alert("Revisar justificación con RH",
+      `Marcación ${fila.tipo} del ${fila.fechaMarcacion} a las ${fila.horaMarcacion}.\n\n` +
+      "AttendanceHistorySet no confirma si JustificationLogSet recibió una justificación. " +
+      "Verifica primero en SAP/RH que esa justificación no exista. " +
+      "¿RH te confirmó que NO fue recibida y autorizas reenviar SOLO la justificación original?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Confirmo y reenvío", onPress: () => ejecutarReenvioOffline(fila.id, true) },
+      ]);
   };
 
   const guardarPresencialOffline = async () => {
@@ -507,11 +852,11 @@ export default function RHAsistencia() {
   };
 
   // Solo captura en SQLite RRHH + SecureStore: sin POST, sin reintentos.
-  const registrarSinInternet = tipo => {
+  const registrarSinInternet = (tipo, justificacionDatos = null) => {
     if (sinConexion !== true || busyRef.current || cargandoColaRH || errorColaRH) return;
     if (!employee || !policy?.habilitado || bloqueoModalidadSinDatos) return;
-    if (policy.confianza && modalidadGuardada !== "Presencial") {
-      Alert.alert("Selecciona modalidad", "Primero confirma Presencial para esta jornada.");
+    if (requiereElegirModalidad && !modalidadGuardada) {
+      Alert.alert("Selecciona modalidad", "Primero confirma tu modalidad de trabajo para esta jornada.");
       return;
     }
     // Una solicitud online que quedo incierta NO se convierte en captura offline.
@@ -521,7 +866,7 @@ export default function RHAsistencia() {
       return;
     }
     const titulo = MAP[tipo]?.title || "Marcación";
-    Alert.alert("Guardar sin conexión", `${titulo} se guardará únicamente en este dispositivo. SAP todavía NO recibirá la solicitud. ¿Confirmas?`, [
+    Alert.alert("Guardar sin conexión", `${titulo} se guardará únicamente en este dispositivo. SAP todavía NO recibirá la solicitud; se enviará al recuperar internet y verificar SAP. ¿Confirmas?`, [
       { text: "Cancelar", style: "cancel" },
       { text: "Guardar en el teléfono", onPress: async () => {
         if (busyRef.current) return;
@@ -536,11 +881,14 @@ export default function RHAsistencia() {
             personalNumber: numeroRegistro,
             email: correo,
             tipo,
-            modalidad: "Presencial",
+            modalidad: modalidadEfectiva,
             registrosLocales: activos,
+            viajeDesde, viajeHasta,
+            justificacionDatos,
           });
           // Mostrar el contenido real de la cola; no asumir éxito si no se leyó.
           setRevisionColaRH(n => n + 1);
+          setDialog(null);
           Alert.alert(salida.yaExistia ? "Registro ya guardado" : "Guardado en el teléfono",
             salida.aviso + "\n\nNo desinstales la aplicación ni borres sus datos hasta que Recursos Humanos confirme el registro.");
         } catch (err) {
@@ -553,8 +901,31 @@ export default function RHAsistencia() {
     ]);
   };
 
+  const bloquearColaRHParaModalidad = () =>
+    cargandoColaRH || !!errorColaRH || hayPendientesRevisionOffline || colaPendienteRH;
   const guardarModalidad = async () => {
-    if (!employee || !sapListo || busyRef.current || modoBloqueado || bloqueoModalidadSinDatos || !policy?.confianza || bloquearPorColaRH) return;
+    if (sinConexion === true) {
+      if (!employee || !requiereElegirModalidad || busyRef.current || bloquearColaRHParaModalidad()) return;
+      if (!modalidades.includes(modalidad)) {
+        Alert.alert("Modalidad no disponible", "Esta modalidad no corresponde al empleado."); return;
+      }
+      if (modalidad === "HomeOffice" && esViajeRH(employee)) {
+        Alert.alert("Modalidad", "El perfil guardado indica viaje, no Home Office."); return;
+      }
+      if (modalidad === "Viaje de negocios" &&
+          (!/^\d{4}-\d{2}-\d{2}$/.test(viajeDesde) ||
+           !/^\d{4}-\d{2}-\d{2}$/.test(viajeHasta) ||
+           viajeDesde > viajeHasta || fechaJornada < viajeDesde || fechaJornada > viajeHasta)) {
+        Alert.alert("Fechas del viaje", "Selecciona fechas validas que incluyan la jornada."); return;
+      }
+      try {
+        await AsyncStorage.setItem(modalidadKey, JSON.stringify({ modalidad, desde: viajeDesde, hasta: viajeHasta }));
+        setModalidadGuardada(modalidad); setExtraOpen(false);
+        Alert.alert("Modalidad guardada", "Tus marcaciones quedaran pendientes hasta que SAP las confirme.");
+      } catch (_) { Alert.alert("Error", "No se pudo guardar la modalidad local."); }
+      return;
+    }
+    if (!employee || !sapListo || busyRef.current || modoBloqueado || bloqueoModalidadSinDatos || !requiereElegirModalidad || bloquearPorColaRH) return;
     if (modalidad === "HomeOffice" && cuotaHOUsada) {
       Alert.alert("Home Office no disponible", "Ya existe un registro de Home Office en esta semana. Solo puedes usar esta modalidad una vez por semana.");
       return;
@@ -576,8 +947,8 @@ export default function RHAsistencia() {
     } catch (e) { Alert.alert("Error al guardar", e?.message || "No se pudo guardar la modalidad."); }
   };
   const abrir = tipo => {
-    if (busyRef.current || !policy?.habilitado || !sapListo || bloqueadaJornadaSAP) return;
-    if (bloquearPorColaRH) {
+    if (busyRef.current || !policy?.habilitado || (sinConexion !== true && (!sapListo || bloqueadaJornadaSAP))) return;
+    if (sinConexion !== true && bloquearPorColaRH) {
       Alert.alert("Pendientes de RRHH", "Primero hay que conciliar las marcaciones guardadas en este teléfono antes de enviar una nueva a SAP.");
       return;
     }
@@ -594,7 +965,7 @@ export default function RHAsistencia() {
       Alert.alert("Registro no disponible", mensaje); return;
     }
     setMotivo("Laboral"); setComentario(""); setRecuperarTiempo(false);
-    setDialog({ tipo, aviso: esCuartoAhora ?
+    setDialog({ tipo, offline: sinConexion === true, aviso: esCuartoAhora ?
       "Este sería tu cuarto retardo del mes. SAP determinará si corresponde inasistencia. Se enviará únicamente la entrada normal." : resultado.aviso,
       late: !esCuartoAhora && !!resultado.retardo,
       early: !esCuartoAhora && !!resultado.salidaAnticipada,
@@ -607,11 +978,20 @@ export default function RHAsistencia() {
     setEstadoSAP(estado);
     const grupoActual = clasificarEmpleadoRH(estado.perfil);
     if (!grupoActual.habilitado) throw Error(grupoActual.razon);
-    if (esViajeRH(estado.perfil)) throw Error("Tu estatus en SAP es viaje de negocios. No debes realizar marcaciones adicionales.");
+    // Un empleado con RelationJob=04 puede registrar P10 en modalidad VN.
+    // La duplicidad y cualquier movimiento posterior se bloquean con el historial actualizado.
+    if (esViajeRH(estado.perfil) && (tipo !== "entrada" || modalidadDeseada !== "Viaje de negocios")) {
+      throw Error("Tu estatus es VIAJE DE NEGOCIOS. Únicamente puedes realizar la entrada inicial en esa modalidad.");
+    }
     if (estado.resumen.inasistenciaSAP) throw Error("SAP ya clasificó esta jornada como inasistencia.");
     const turn = obtenerTurnoDelDia(estado.perfil.scheduleDetail, new Date());
     const remotos = movimientosDesdeHistoryRH(estado.resumen.jornadaSAP, turn);
-    const combinados = [...activos, ...remotos].filter(r => !(
+    // Revalidacion previa al POST: se usa lo que SAP devuelve AHORA.
+    // Un recibo historico 'accepted' en AsyncStorage no sustituye al GET
+    // (por ejemplo si la marcacion fue eliminada en SAP QAS).
+    const combinados = [
+      ...activos.filter(r => r.sapState !== "accepted"), ...remotos,
+    ].filter(r => !(
       ["sending", "uncertain", "rejected"].includes(r.sapState) &&
       remotos.some(x => x.type === r.type)));
     const marcacionEntrada = combinados.find(r => r.type === "entrada" && r.sapState === "accepted" &&
@@ -647,6 +1027,22 @@ export default function RHAsistencia() {
 
   const registrar = async () => {
     if (!dialog || busyRef.current || !employee || !modalidadLista) return;
+    if (sinConexion === true) {
+      const resultado = revisar(dialog.tipo);
+      if (!resultado.permitido) {
+        Alert.alert("Registro no disponible", resultado.mensaje || "Revisa la jornada.");
+        return;
+      }
+      const requiereMotivo = !!(resultado.retardo || resultado.salidaAnticipada);
+      if (requiereMotivo && (!comentario.trim() || !["Personal", "Laboral"].includes(motivo))) {
+        Alert.alert("Justificacion requerida", "Selecciona motivo y escribe un comentario para guardar el registro offline.");
+        return;
+      }
+      registrarSinInternet(dialog.tipo, requiereMotivo
+        ? { motivo, comentario: comentario.trim(), recuperarTiempo }
+        : null);
+      return;
+    }
     if (sinConexion !== false || bloquearPorColaRH) {
       setDialog(null);
       Alert.alert("No se enviará a SAP", "La conexión o la cola local cambió. Revisa las marcaciones pendientes antes de continuar.");
@@ -798,7 +1194,12 @@ export default function RHAsistencia() {
     busyRef.current = true; setBusy(true);
     try {
       const { registros: history } = await consultarHistorialRH({
-        personalNumber: numeroRegistro, desde: r.date, hasta: r.date,
+        personalNumber: numeroRegistro,
+        // La fecha real de P20 puede ser el día SIGUIENTE al inicio del turno.
+        // Verificar toda la jornada, no solamente EnterDate de la salida.
+        desde: r.jornadaDate || fechaJornada,
+        hasta: r.jornadaDate || fechaJornada,
+        scheduleDetail: empleadoVigente?.scheduleDetail || "",
       });
       const existente = history.find(h => h.registerType === r.registerType && h.date === r.date);
       if (existente) {
@@ -930,139 +1331,114 @@ export default function RHAsistencia() {
 
   if (!policy?.habilitado) return <SafeAreaView style={s.safe}><View style={s.center}>
     <Ionicons name="information-circle-outline" size={38} color={C.blue}/>
-    <Text style={s.sectionTitle}>Registro por otro canal</Text>
+    <Text style={s.sectionTitle}>Marcaje no disponible</Text>
     <Text style={[s.muted, { textAlign: "center" }]}>{policy?.razon || "No tienes habilitado el registro por aplicación."}</Text>
     <Btn title="Ver historial" icon="calendar-outline" onPress={() => router.push("/rrhh/historial")}/>
     <Btn title="Volver a mis datos" icon="arrow-back" outline onPress={() => router.replace("/rrhh")}/>
   </View></SafeAreaView>;
 
-  // Pantalla offline separada: nunca reutiliza un estado SAP que ya no es fresco
-  // ni convierte los registros PENDIENTES en registros confirmados.
-  if (sinConexion === true) {
-    const tiposDisponibles = policy?.sindicalizado
-      ? ["entrada", "salida"] : ["entrada", "comida_inicio", "comida_fin", "salida"];
-    const modoIncompatible = !!modalidadGuardada && modalidadGuardada !== "Presencial";
-    const sinModalidad = policy?.confianza && modalidadGuardada !== "Presencial";
-    return <SafeAreaView style={s.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor={C.white}/>
-      <View style={s.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Regresar"
-          onPress={() => router.back()} style={s.back}>
-          <Ionicons name="arrow-back" size={23} color={C.ink}/>
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={s.headerTitle}>Registrar asistencia</Text>
-          <Text style={s.headerSub}>Modo sin conexión · RRHH</Text>
-        </View>
-        <Ionicons name="wifi-off-outline" color={C.amber} size={23}/>
-      </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.content}>
-        <View style={s.employeeBar}>
-          <Ionicons name="person-circle-outline" size={34} color={C.red}/>
-          <View style={{ flex: 1 }}>
-            <Text style={s.employeeName}>{employee.fullName}</Text>
-            <Text style={s.muted}>Nómina {numeroRegistro}</Text>
-          </View>
-        </View>
-        <View style={[s.card, s.offlineBanner]}>
-          <View style={s.reviewHead}>
-            <Ionicons name="wifi-off-outline" size={23} color={C.amber}/>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={s.sectionTitle}>Sin conexión a internet</Text>
-              <Text style={s.muted}>Solo podrás guardar en este teléfono. SAP no recibirá tu marcación hasta una etapa posterior de conciliación y envío.</Text>
-            </View>
-          </View>
-          {obtenerTurnoDelDia(employee.scheduleDetail, ahora)?.valido && <Text style={s.turnoLine}>
-            Horario guardado: {obtenerTurnoDelDia(employee.scheduleDetail, ahora).textoInicio}–{obtenerTurnoDelDia(employee.scheduleDetail, ahora).textoFin}
-          </Text>}
-          <Text style={s.note}>El perfil y el historial mensual deben tener una copia guardada de menos de 24 horas para permitir la captura.</Text>
-        </View>
-        <View style={s.card}>
-          <CardTitle title="Registros guardados en este dispositivo" icon="save-outline"
-            sub="Los pendientes se enviarán al recuperar internet y validar SAP."/>
-          {cargandoColaRH && <View style={s.offlineLoading}>
-            <ActivityIndicator color={C.red}/><Text style={s.muted}>Revisando pendientes de RRHH…</Text>
-          </View>}
-          {!!errorColaRH && <Text style={s.warning}>{errorColaRH}</Text>}
-          {!cargandoColaRH && !errorColaRH && pendientesJornadaRH.length === 0 &&
-            <Text style={s.muted}>No hay marcaciones offline guardadas para esta jornada.</Text>}
-          {!cargandoColaRH && !errorColaRH && pendientesJornadaRH.map(p => {
-            const tipo = TIPO_DESDE_CODIGO[p.tipo];
-            return <View style={s.record} key={p.id}>
-              <Ionicons name={MAP[tipo]?.icon || "time-outline"} color={C.amber} size={20}/>
-              <View style={{ flex: 1, gap: 3 }}>
-                <Text style={s.recordTitle}>{MAP[tipo]?.title || p.tipo}</Text>
-                <Text style={s.warning}>{etiquetaEstadoOffline(p.estado)}</Text>
-              </View>
-              <Text style={s.recordTime}>{p.horaMarcacion.slice(0, 5)}</Text>
-            </View>;
-          })}
-          {pendientesOffline.some(p => p.fechaJornada !== fechaJornada && p.estado !== "confirmado") &&
-            <Text style={s.warning}>También existen marcaciones offline sin conciliar de otras jornadas.</Text>}
-          <Btn title="Actualizar pendientes locales" icon="refresh-outline" outline
-            disabled={busy || cargandoColaRH} onPress={() => setRevisionColaRH(v => v + 1)}/>
-        </View>
-        <View style={s.card}>
-          <CardTitle title="Guardar marcación" icon="finger-print-outline"
-            sub="Primera fase: solo Presencial y sin retardo ni salida anticipada."/>
-          {policy?.confianza && sinModalidad && !modoIncompatible && !bloqueoModalidadSinDatos &&
-            <Btn title="Confirmar modalidad Presencial" icon="checkmark-circle-outline"
-              disabled={busy || cargandoColaRH || !!errorColaRH || colaPendienteRH}
-              onPress={guardarPresencialOffline}/>}
-          {modoIncompatible && <Text style={s.warning}>
-            Para esta jornada elegiste una modalidad distinta de Presencial. Aún no admitimos Home Office ni viajes offline.
-          </Text>}
-          {bloqueoModalidadSinDatos && <Text style={s.warning}>
-            La modalidad requiere revisión. Conéctate a SAP antes de continuar.
-          </Text>}
-          {sinModalidad && !modoIncompatible && !bloqueoModalidadSinDatos &&
-            <Text style={s.note}>Confirma primero Presencial. No podrás cambiar la modalidad después de registrar.</Text>}
-          {!sinModalidad && !bloqueoModalidadSinDatos && !modoIncompatible &&
-            <Text style={s.success}>Modalidad: Presencial</Text>}
-          {tiposDisponibles.map(tipo => <Btn key={tipo}
-            title={`Guardar ${MAP[tipo].title.toLowerCase()} sin internet`}
-            icon={MAP[tipo].icon}
-            disabled={busy || cargandoColaRH || !!errorColaRH ||
-              sinModalidad || modoIncompatible || bloqueoModalidadSinDatos}
-            onPress={() => registrarSinInternet(tipo)}/>)}
-          <Text style={s.note}>Antes de guardar se volverán a validar el perfil, los registros anteriores, el horario y el GPS. Si alguna condición no se cumple, no se guardará.</Text>
-        </View>
-        <Btn title="Consultar historial guardado" icon="calendar-outline" outline
-          onPress={() => router.push("/rrhh/historial")}/>
-      </ScrollView>
-    </SafeAreaView>;
-  }
-
+  // Una sola vista para online y offline; cambian la fuente y el estado,
+  // pero se mantienen las tarjetas, la linea de pasos y los botones originales.
   // Una vez vencidos los 60 minutos, desaparece P25 y solo queda P20.
-  const veredictoRegreso = inicioComida && !regresoComida ? revisar("comida_fin") : null;
+  const veredictoRegreso = inicioComidaVista && !regresoComidaVista ? revisar("comida_fin") : null;
   const comidaCerrada = !!veredictoRegreso?.fueraDeVentanaComida;
   // No presentar el estado provisional de los acuses locales como resultado definitivo
   // mientras aún falta validar EmployeeSet + AttendanceHistorySet en SAP.
   const verificandoSAP = sinConexion !== true && !sapListo && !estadoSAP.error &&
     (estadoSAP.cargando || perfilLoading || !!employee);
-  const jornada = !sapListo ? (verificandoSAP ? "Consultando información de SAP…" : "No se pudo verificar la jornada")
-    : viajeActivo || viajeYaEnviado ? "Viaje de negocios registrado"
+  const jornada = sinConexion === true
+    ? (historialOffline.cargando ? "Consultando datos guardados…"
+      : salidaVista && (pendientesJornadaRH.some(p => p.estado !== "confirmado") || acusesSinHistorial)
+      ? "Jornada guardada · esperando SAP"
+      : pendientesJornadaRH.some(p => p.estado !== "confirmado") || acusesSinHistorial
+      ? "Marcaciones guardadas · esperando SAP"
+      : salidaVista ? "Jornada finalizada (última consulta)"
+      : !entradaVista ? "Aún no has registrado tu entrada"
+      : inicioComidaVista && !regresoComidaVista && !comidaCerrada ? "En horario de comida"
+      : "Jornada en curso · sin conexión")
+    : !sapListo ? (verificandoSAP ? "Consultando información de SAP…" : "No se pudo verificar la jornada")
+    : viajeYaEnviado || (viajeActivo && !!entradaVista) ? "Viaje de negocios registrado"
     : estadoSAP.resumen?.inasistenciaSAP || entradaFueCuarto ? "Jornada bloqueada por inasistencia/cuarto retardo"
-    : salida ? "Jornada finalizada" : pendientesReales.length ? "Registro pendiente de revisión"
-    : !entrada ? "Aún no has registrado tu entrada"
-    : inicioComida && !regresoComida && !comidaCerrada ? "En horario de comida" : "Jornada en curso";
+    : salidaVista && acusesSinHistorial ? "Enviado · verificando historial SAP"
+    : salidaVista ? "Jornada finalizada" : pendientesReales.length || acusesSinHistorial ? "Registro por conciliar"
+    : !entradaVista ? "Aún no has registrado tu entrada"
+    : inicioComidaVista && !regresoComidaVista && !comidaCerrada ? "En horario de comida" : "Jornada en curso";
   const soloDosRegistros = policy?.sindicalizado || modalidadEfectiva === "HomeOffice" || hoyEnHomeOffice;
-  const pasosVisibles = (viajeActivo || viajeYaEnviado) ? (entrada ? ["entrada"] : []) :
+  const esViajeModalidad = modalidadEfectiva === "Viaje de negocios";
+  const pasosVisibles = (viajeActivo || viajeYaEnviado || esViajeModalidad) ? ["entrada"] :
     soloDosRegistros ? ["entrada", "salida"] : ORDEN;
-  const botones = bloqueadaJornadaSAP ? [] : !entrada ? ["entrada"] : salida ? []
+  const botones = bloqueadaJornadaSAP ? [] : !entradaVista ? ["entrada"] : (salidaVista || esViajeModalidad) ? []
     : soloDosRegistros ? ["salida"]
-    : inicioComida && !regresoComida ? (comidaCerrada ? ["salida"] : ["comida_fin", "salida"])
-    : !inicioComida ? ["comida_inicio", "salida"] : ["salida"];
+    : inicioComidaVista && !regresoComidaVista ? (comidaCerrada ? ["salida"] : ["comida_fin", "salida"])
+    : !inicioComidaVista ? ["comida_inicio", "salida"] : ["salida"];
   const principal = botones.find(t => t !== "salida") || botones[0] || null;
   const secundaria = botones.includes("salida") && principal !== "salida" ? "salida" : null;
   const resultadoPrincipal = principal ? revisar(principal) : null;
-  const mensajePrincipal = resultadoPrincipal?.mensaje?.includes("SAP") ||
-    resultadoPrincipal?.mensaje?.includes("ScheduleDetail") || resultadoPrincipal?.mensaje?.includes("TypeSession")
+  const mensajePrincipal = sinConexion !== true && (
+    resultadoPrincipal?.mensaje?.includes("SAP") ||
+    resultadoPrincipal?.mensaje?.includes("ScheduleDetail") ||
+    resultadoPrincipal?.mensaje?.includes("TypeSession"))
     ? "No podemos habilitar este registro. Comunícate con Recursos Humanos."
     : resultadoPrincipal?.mensaje;
-  const faltaModalidad = policy?.confianza && !modalidadLista && !bloqueadaJornadaSAP && !esCuartoAhora;
+  const faltaModalidad = requiereElegirModalidad && !modalidadLista && !bloqueadaJornadaSAP && !esCuartoAhora;
   const salidaAnticipadaAhora = !!revisar("salida")?.salidaAnticipada;
   const etiquetaSalida = salidaAnticipadaAhora ? "Registrar salida anticipada" : "Registrar salida";
+  const bloquearBotonesMarcacion = busy || actualizandoSAP || sincronizandoRH || !!pendientesReales.length ||
+    (sinConexion === true
+      ? (cargandoColaRH || !!errorColaRH || hayPendientesRevisionOffline)
+      : bloquearPorColaRH);
+
+  // UX unificada: un aviso breve + una sola accion relevante.
+  // La bitacora y los errores tecnicos siguen guardados en SQLite,
+  // pero NO se muestran como botones o bloques repetidos en la pantalla.
+  const filaPorRevisar = pendientesOffline.find(f =>
+    ["incierto", "revision", "rechazado"].includes(f.estado) ||
+    (f.estado === "confirmado" &&
+      ["incierto", "revision", "rechazado"].includes(f.justificacionEstado)));
+  const hayEnvioEnProceso = pendientesOffline.some(f => f.estado === "enviando");
+  const acuseOnlinePorRevisar = pendientesReales[0] || null;
+  const justificacionOnlinePorRevisar = justificacionesSinConfirmar[0] || null;
+  const hayAlgoPendiente = colaPendienteRH || acusesSinHistorial ||
+    !!acuseOnlinePorRevisar || !!justificacionOnlinePorRevisar;
+  const avisoUnico = sinConexion === true
+    ? (hayAlgoPendiente ? "Tienes registros guardados. Se enviarán cuando vuelva internet."
+      : "Sin conexión. Tus marcaciones se guardarán en el dispositivo.")
+    : filaPorRevisar || acuseOnlinePorRevisar || justificacionOnlinePorRevisar
+    ? "Un registro necesita revisión. Sus datos siguen guardados."
+    : hayEnvioEnProceso ? "Hay un envío en proceso."
+    : colaPendienteRH ? "Tienes registros pendientes de sincronización."
+    : acusesSinHistorial ? "Registro enviado. Esperando confirmación en el historial SAP."
+    : "";
+  const necesitaGestion = sinConexion === false && hayAlgoPendiente;
+  const etiquetaAccionUnica = filaPorRevisar || acuseOnlinePorRevisar || justificacionOnlinePorRevisar
+    ? "Revisar y reintentar"
+    : hayEnvioEnProceso || acusesSinHistorial ? "Consultar estado en SAP"
+    : colaPendienteRH ? "Sincronizar pendientes"
+    : "Actualizar estado desde SAP";
+  const ejecutarAccionUnica = () => {
+    if (filaPorRevisar) {
+      if (filaPorRevisar.estado === "confirmado") {
+        confirmarReenvioJustificacionOffline(filaPorRevisar);
+      } else {
+        verificarAntesDeReenviarOffline(filaPorRevisar);
+      }
+    } else if (acuseOnlinePorRevisar) {
+      verificarYReintentar(acuseOnlinePorRevisar);
+    } else if (justificacionOnlinePorRevisar) {
+      if (["rejected", "pending"].includes(justificacionOnlinePorRevisar.justificationState)) {
+        reintentarJustificacion(justificacionOnlinePorRevisar);
+      } else {
+        Alert.alert("Justificación pendiente", "Consulta con Recursos Humanos antes de volver a enviarla.");
+      }
+    } else if (hayEnvioEnProceso || acusesSinHistorial) {
+      setRevisionColaRH(n => n + 1);
+      setSyncTick(n => n + 1);
+    } else if (colaPendienteRH) {
+      sincronizarColaAhora();
+    } else {
+      setSyncTick(n => n + 1);
+    }
+  };
 
   return <SafeAreaView style={s.safe}>
     <StatusBar barStyle="dark-content" backgroundColor={C.white}/>
@@ -1088,36 +1464,11 @@ export default function RHAsistencia() {
             <Text style={s.employeeName}>{employee.fullName}</Text>
             <Text style={s.muted}>Nómina {numeroRegistro}</Text>
           </View>
-          <Text style={s.dateBadge}>{ahora.toLocaleDateString("es-MX", { day: "numeric", month: "short" })}</Text>
+          <View style={{ alignItems: "flex-end", gap: 3 }}>
+            <Text style={s.dateBadge}>{ahora.toLocaleDateString("es-MX", { day: "numeric", month: "short" })}</Text>
+            {sinConexion === true && <Text style={s.warning}>Sin conexión</Text>}
+          </View>
         </View>
-
-        {(cargandoColaRH || !!errorColaRH || colaPendienteRH) &&
-          <View style={[s.card, s.offlineBanner]}>
-            <View style={s.reviewHead}>
-              <Ionicons name="alert-circle-outline" size={23} color={C.amber}/>
-              <View style={{ flex: 1, gap: 5 }}>
-                <Text style={s.sectionTitle}>Pendientes offline de RRHH</Text>
-                <Text style={s.muted}>Para evitar duplicados, no se permiten nuevos envíos a SAP hasta conciliar las marcaciones guardadas localmente.</Text>
-              </View>
-            </View>
-            {cargandoColaRH && <ActivityIndicator color={C.red}/>}
-            {!!errorColaRH && <Text style={s.warning}>{errorColaRH}</Text>}
-            {pendientesOffline.filter(p => p.estado !== "confirmado").map(p =>
-              <View key={p.id} style={s.record}>
-                <Ionicons name="time-outline" size={19} color={C.amber}/>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.recordTitle}>{MAP[TIPO_DESDE_CODIGO[p.tipo]]?.title || p.tipo} · {p.fechaJornada}</Text>
-                  <Text style={s.warning}>{etiquetaEstadoOffline(p.estado)}</Text>
-                </View>
-                <Text style={s.recordTime}>{p.horaMarcacion.slice(0, 5)}</Text>
-              </View>)}
-            <Btn title="Sincronizar pendientes con SAP" icon="cloud-upload-outline"
-              disabled={busy || cargandoColaRH || !!errorColaRH || origenPerfil !== "sap"}
-              onPress={sincronizarColaAhora}/>
-            <Btn title="Actualizar lista" icon="refresh-outline" outline
-              disabled={busy || cargandoColaRH} onPress={() => setRevisionColaRH(v => v + 1)}/>
-            <Text style={s.note}>La sincronización se intenta automáticamente al recuperar internet o abrir la app. Los envíos inciertos no se repiten sin verificación; pueden requerir revisión de RH.</Text>
-          </View>}
 
         <View style={s.card}>
           <View style={s.jornadaHeader}>
@@ -1125,80 +1476,51 @@ export default function RHAsistencia() {
               <Text style={s.sectionTitle}>Estado de mi jornada</Text>
               <Text style={s.muted}>{jornada}</Text>
             </View>
-            <Ionicons name={!sapListo ? "alert-circle-outline" : salida ? "checkmark-circle" : pendientesReales.length ? "alert-circle" : "time-outline"}
-              size={23} color={!sapListo ? C.danger : salida ? C.green : pendientesReales.length ? C.amber : C.blue}/>
+            <Ionicons name={sinConexion === true ? "cloud-offline-outline" :
+                !sapListo ? "alert-circle-outline" : salida ? "checkmark-circle" :
+                pendientesReales.length || colaPendienteRH || acusesSinHistorial ? "alert-circle" : "time-outline"}
+              size={23} color={sinConexion === true ? C.amber :
+                !sapListo ? C.danger : salida ? C.green :
+                pendientesReales.length || colaPendienteRH || acusesSinHistorial ? C.amber : C.blue}/>
           </View>
-          {!sapListo && !verificandoSAP && <View style={s.sapErrorBox} accessibilityLiveRegion="polite">
+          {sinConexion !== true && !sapListo && !verificandoSAP && <View style={s.sapErrorBox} accessibilityLiveRegion="polite">
             <Ionicons name="alert-circle-outline" size={25} color={C.danger}/>
             <Text style={s.sapLoadingTitle}>No pudimos verificar la información de SAP.</Text>
             <Text style={s.sapLoadingText}>{estadoSAP.error || "Consulta de nuevo para recuperar el estado de tu jornada."}</Text>
-            <Btn title="Reintentar consulta" icon="refresh-outline" outline
-              disabled={busy} onPress={() => setSyncTick(n => n + 1)}/>
           </View>}
-          {sapListo && <View style={s.timeline}>{pasosVisibles.map((tipo, idx) => {
-            const registro = ultimo(aceptados, tipo);
+          {pantallaJornadaDisponible && <View style={s.timeline}>{pasosVisibles.map((tipo, idx) => {
+            const confirmado = ultimo(aceptados, tipo);
+            const registro = confirmado || ultimo(pendientesDeHoyVisuales, tipo);
+            const pendienteLocal = !confirmado && registro?.source === "RH_OFFLINE";
             return <View key={tipo} style={s.step}>
-              <View style={[s.stepCircle, registro && s.stepDone]}>
-                {registro ? <Ionicons name="checkmark" color={C.white} size={15}/>
+              <View style={[s.stepCircle, confirmado && s.stepDone,
+                pendienteLocal && { backgroundColor: C.amber, borderColor: C.amber }]}>
+                {confirmado ? <Ionicons name="checkmark" color={C.white} size={15}/>
+                  : pendienteLocal ? <Ionicons name="time-outline" color={C.white} size={16}/>
                   : <Text style={s.stepNumber}>{idx + 1}</Text>}
               </View>
               <Text style={s.stepLabel}>{MAP[tipo].title}</Text>
-              <Text style={[s.stepTime, registro && { color: C.green }]}>{registro?.time || "--:--"}</Text>
+              <Text style={[s.stepTime, registro && { color: pendienteLocal ? C.amber : C.green }]}>
+                {registro?.time || "--:--"}</Text>
+              {pendienteLocal && <Text style={[s.note, { color: C.amber, textAlign: "center", fontSize: 9 }]}>
+                {registro.estadoOffline === "pendiente" ? "Pendiente" :
+                  registro.estadoOffline === "confirmado" ? "Por conciliar" : "Por revisar"}</Text>}
             </View>;
           })}</View>}
-          {sapListo && policy?.sindicalizado && <Text style={s.turnoLine}>Modalidad: Presencial</Text>}
-          {sapListo && turno?.valido && <Text style={s.turnoLine}>
+          {pantallaJornadaDisponible && policy?.sindicalizado && !policy?.relacion?.viaje &&
+            <Text style={s.turnoLine}>Modalidad: {policy?.relacion?.homeOffice ? "Home Office" : "Presencial"}</Text>}
+          {pantallaJornadaDisponible && turno?.valido && <Text style={s.turnoLine}>
             <Ionicons name="time-outline" size={15} color={C.sub}/>  Horario de hoy: {turno.textoInicio}–{turno.textoFin}
+          </Text>}
+          {sapListo && estadoSAP.cacheError && <Text style={s.warning}>
+            No fue posible actualizar la copia offline. Verifica el almacenamiento.
           </Text>}
         </View>
 
-        {sapListo && !!justificacionesSinConfirmar.length && <View style={s.card}>
-          <View style={s.reviewHead}>
-            <Ionicons name="alert-circle-outline" size={21} color={C.amber}/>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={s.sectionTitle}>Justificación por confirmar</Text>
-              <Text style={s.muted}>Tu marcación sí fue recibida; la justificación requiere revisión por separado.</Text>
-            </View>
-          </View>
-          {justificacionesSinConfirmar.map(r => <View key={r.id} style={{ gap: 9 }}>
-            <Text style={s.muted}>{MAP[r.type]?.title || "Marcación"} · {r.time}</Text>
-            {!!r.justificationError && <Text style={s.warning}>Error: {r.justificationError}</Text>}
-            {["rejected", "pending"].includes(r.justificationState) &&
-              <Btn title={r.justificationState === "pending" ? "Enviar justificación" : "Reintentar solo la justificación"} icon="refresh-outline" outline
-                disabled={busy} onPress={() => reintentarJustificacion(r)}/>}
-            {!["rejected", "pending"].includes(r.justificationState) && <Text style={s.note}>
-              No repitas la justificación con resultado incierto sin validarla con Recursos Humanos.
-            </Text>}
-          </View>)}
-        </View>}
+        {/* Los acuses y justificaciones anteriores se gestionan desde la accion
+            unica de Registrar movimiento. La bitacora se conserva intacta. */}
 
-        {sapListo && !!pendientesReales.length && <View style={s.card}>
-          <View style={s.reviewHead}>
-            <Ionicons name="alert-circle-outline" size={21} color={C.amber}/>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={s.sectionTitle}>Tienes un registro sin confirmar</Text>
-              <Text style={s.muted}>Puedes consultar SAP antes de decidir si es necesario volver a enviarlo. No se reenvía automáticamente.</Text>
-            </View>
-          </View>
-          <Pressable accessibilityRole="button" onPress={() => setRevisionOpen(x => !x)}
-            style={s.expand}>
-            <Text style={[s.expandLabel, { flex: 1 }]}>{revisionOpen ? "Ocultar opciones" : "Opciones de revisión"}</Text>
-            <Ionicons name={revisionOpen ? "chevron-up" : "chevron-down"} size={18} color={C.blue}/>
-          </Pressable>
-          {revisionOpen && pendientesReales.map(r => <View key={r.id} style={{ gap: 9 }}>
-            <Text style={s.muted}>{MAP[r.type]?.title || "Marcación"} · {r.time}</Text>
-            {!!r.errorDetail && <Text style={s.warning}>Error: {r.errorDetail}</Text>}
-            <Btn title="Verificar en SAP y evaluar reintento" icon="refresh-outline"
-              disabled={busy || bloquearPorColaRH} onPress={() => verificarYReintentar(r)}/>
-            <Text style={s.note}>Si SAP ya guardó el movimiento, no se reenviará. Los botones siguientes son para conciliación manual con Recursos Humanos.</Text>
-            <Btn title="Se confirmó el registro" icon="checkmark-circle-outline"
-              disabled={busy} onPress={() => resolverPendiente(r, true)}/>
-            <Btn title="Se confirmó que no existe" icon="alert-circle-outline" outline danger
-              disabled={busy} onPress={() => resolverPendiente(r, false)}/>
-          </View>)}
-        </View>}
-
-        {sapListo && policy?.confianza && !esCuartoAhora && !bloqueadaJornadaSAP && <View style={s.card}>
+        {pantallaJornadaDisponible && requiereElegirModalidad && !esCuartoAhora && !bloqueadaJornadaSAP && <View style={s.card}>
           <CardTitle title="1. Modalidad de trabajo"
             sub="Elige cómo trabajarás hoy antes de registrar tu entrada."
             icon="briefcase-outline"/>
@@ -1208,12 +1530,12 @@ export default function RHAsistencia() {
           {modalidadLista && <View style={s.modeSummary}>
             <Ionicons name="checkmark-circle" size={20} color={C.green}/>
             <Text style={s.modeText}>{modalidadEfectiva === "HomeOffice" ? "Home Office" : modalidadEfectiva}</Text>
-            {!modoBloqueado && policy?.confianza && <Pressable accessibilityRole="button"
+            {!modoBloqueado && requiereElegirModalidad && <Pressable accessibilityRole="button"
               onPress={() => setExtraOpen(x => !x)}>
               <Text style={s.expandLabel}>Cambiar</Text>
             </Pressable>}
           </View>}
-          {policy?.confianza && !modoBloqueado && !bloqueoModalidadSinDatos && (extraOpen || !modalidadLista) && <>
+          {requiereElegirModalidad && !modoBloqueado && !bloqueoModalidadSinDatos && (extraOpen || !modalidadLista) && <>
             {modalidades.map(x => <Pick key={x}
               title={x === "HomeOffice" ? "Home Office" : x}
               selected={modalidad === x} onPress={() => {
@@ -1240,89 +1562,100 @@ export default function RHAsistencia() {
               <Text style={s.note}>Selecciona un período que incluya el día de hoy.</Text>
             </View>}
             <Btn title="Confirmar modalidad" icon="checkmark-circle-outline"
-              disabled={busy || bloquearPorColaRH} onPress={guardarModalidad}/>
+              disabled={busy || (sinConexion === true
+                ? cargandoColaRH || !!errorColaRH || hayPendientesRevisionOffline
+                : bloquearPorColaRH)} onPress={guardarModalidad}/>
           </>}
-          {policy?.confianza && modoBloqueado && <Text style={s.note}>
+          {requiereElegirModalidad && modoBloqueado && <Text style={s.note}>
             Esta modalidad se mantiene durante toda la jornada.
           </Text>}
         </View>}
 
         <View style={s.card}>
-          <CardTitle title={policy?.confianza ? "2. Registrar movimiento" : "Registrar movimiento"}
+          <CardTitle title={requiereElegirModalidad ? "2. Registrar movimiento" : "Registrar movimiento"}
             icon="finger-print-outline"/>
-          {!sapListo && !verificandoSAP && <View style={s.sapInlineStatus} accessibilityLiveRegion="polite">
+          {sinConexion !== true && !sapListo && !verificandoSAP && <View style={s.sapInlineStatus} accessibilityLiveRegion="polite">
             <Ionicons name="alert-circle-outline" size={19} color={C.danger}/>
-            <Text style={s.sapInlineText}>No es posible registrar movimientos hasta verificar la jornada en SAP.</Text>
+            <Text style={s.sapInlineText}>No se pudo consultar SAP. Intenta actualizar.</Text>
           </View>}
+          {sinConexion === true && !historialOffline.cargando && !!historialOffline.error &&
+            <Text style={s.warning}>No se pudo cargar la última jornada guardada.</Text>}
           {sapListo && cuotaHOUsada && !entrada && policy?.confianza && <Text style={s.note}>
             Home Office no disponible: ya hay un día registrado con esta modalidad en la semana.
           </Text>}
           {sapListo && esCuartoAhora && <Text style={s.warning}>
             Ya tienes tres retardos este mes. Si registras entrada ahora, será el cuarto.
-            Se enviará sólo la entrada normal; SAP determinará la inasistencia y no podrás continuar la jornada.
           </Text>}
-          {sapListo && (viajeActivo || viajeYaEnviado) && <Text style={s.note}>
-            Viaje de negocios registrado. No necesitas realizar marcaciones adicionales.
+          {sapListo && (viajeYaEnviado || (viajeActivo && !!entradaVista)) && <Text style={s.note}>
+            Viaje de negocios registrado. No necesitas marcaciones adicionales.
           </Text>}
           {sapListo && (estadoSAP.resumen?.inasistenciaSAP || entradaFueCuarto || cuartoPendienteConfirmar) &&
-            <Text style={s.warning}>Jornada bloqueada por cuarto retardo. Contactar a Recursos Humanos para aclaraciones.</Text>}
-          <Btn title="Actualizar estado desde SAP" icon="refresh-outline" outline
-            disabled={busy || estadoSAP.cargando} onPress={() => { refreshPerfil(); setSyncTick(n => n + 1); }}/>
-
+            <Text style={s.warning}>Jornada bloqueada. Contacta a Recursos Humanos.</Text>}
+          {!!avisoUnico && !sincronizandoRH && <Text style={necesitaGestion ? s.warning : s.note}>
+            {avisoUnico}
+          </Text>}
+          {/* Una acción; el spinner permanece en el botón y conserva la pantalla visible. */}
+          {sinConexion !== true && <Btn
+            title={sincronizandoRH ? "Sincronizando con SAP…" : actualizandoSAP
+              ? "Actualizando información…" : etiquetaAccionUnica}
+            icon={necesitaGestion && !filaPorRevisar && colaPendienteRH ? "cloud-upload-outline" : "refresh-outline"}
+            loading={sincronizandoRH || (actualizandoSAP && !verificandoSAP)}
+            outline={!necesitaGestion}
+            disabled={busy || actualizandoSAP || estadoSAP.cargando || cargandoColaRH || !!errorColaRH ||
+              (necesitaGestion && origenPerfil !== "sap")}
+            onPress={ejecutarAccionUnica}/>}
+          {!!mensajeSync && !sincronizandoRH && sinConexion === false &&
+            <Text style={s.note}>{mensajeSync}</Text>}
           {!policy?.habilitado && <Text style={s.warning}>
             {policy?.razon || "Tu asistencia no está habilitada desde la aplicación."}
           </Text>}
-          {sapListo && faltaModalidad && <Text style={s.note}>Primero confirma tu modalidad de trabajo.</Text>}
+          {pantallaJornadaDisponible && faltaModalidad && <Text style={s.note}>Primero confirma tu modalidad de trabajo.</Text>}
           {comidaCerrada && !salida && <Text style={s.warning}>
             Pasaron más de 60 minutos desde el inicio de comida. El regreso ya no está disponible; solo puedes registrar salida.
           </Text>}
-          {sapListo && principal && <>
+          {pantallaJornadaDisponible && principal && <>
             <Btn title={principal === "entrada" ? "Registrar entrada" :
                 principal === "comida_inicio" ? "Iniciar comida" :
                 principal === "comida_fin" ? "Regresar de comida" : etiquetaSalida}
-              icon={MAP[principal].icon} onPress={() => abrir(principal)}
-              disabled={!modalidadLista || !resultadoPrincipal?.permitido || busy || !!pendientesReales.length || bloquearPorColaRH}/>
+              icon={MAP[principal].icon}
+              onPress={() => abrir(principal)}
+              disabled={!modalidadLista || !resultadoPrincipal?.permitido || bloquearBotonesMarcacion}/>
             {!!resultadoPrincipal && !resultadoPrincipal.permitido && modalidadLista &&
-              !pendientesReales.length && <Text style={s.note}>{mensajePrincipal}</Text>}
+              !pendientesReales.length && !hayAlgoPendiente && <Text style={s.note}>{mensajePrincipal}</Text>}
             {!!resultadoPrincipal?.retardo && <Text style={s.warning}>
               Tu entrada se registrará con retardo.
             </Text>}
           </>}
-          {sapListo && secundaria && <Pressable accessibilityRole="button" disabled={busy || !modalidadLista || !!pendientesReales.length || bloquearPorColaRH || !revisar(secundaria).permitido}
-            onPress={() => abrir(secundaria)} style={[s.exitLink, (busy || !modalidadLista || !!pendientesReales.length || bloquearPorColaRH || !revisar(secundaria).permitido) && s.disabled]}>
+          {pantallaJornadaDisponible && secundaria && <Pressable accessibilityRole="button"
+            disabled={!modalidadLista || bloquearBotonesMarcacion || !revisar(secundaria).permitido}
+            onPress={() => abrir(secundaria)}
+            style={[s.exitLink, (!modalidadLista || bloquearBotonesMarcacion || !revisar(secundaria).permitido) && s.disabled]}>
             <Text style={s.expandLabel}>{etiquetaSalida}</Text>
             <Ionicons name="arrow-forward" size={16} color={C.blue}/>
           </Pressable>}
-          {sapListo && salida && <Text style={s.success}>Completaste tus registros de hoy.</Text>}
-          {sapListo && !turno?.valido && !salida && <Text style={s.note}>
+          {pantallaJornadaDisponible && salidaVista && !hayAlgoPendiente &&
+            <Text style={s.success}>Completaste tus registros de hoy.</Text>}
+          {pantallaJornadaDisponible && !turno?.valido && !salidaVista && <Text style={s.note}>
             No encontramos un horario válido para hoy. Consulta con Recursos Humanos.
           </Text>}
         </View>
 
-        {sapListo && deHoy.length > 0 && <View style={s.card}>
+        {pantallaJornadaDisponible && deHoy.length > 0 && <View style={s.card}>
           <Text style={s.sectionTitle}>Movimientos de hoy</Text>
-          {deHoy.filter(r => r.source === "SAP" || !movimientosRemotos.some(sap => sap.type === r.type))
+          {deHoy.filter(r => (r.source === "RH_OFFLINE" || r.source === "SAP" ||
+            !movimientosRemotos.some(sap => sap.type === r.type)) &&
+            !["rejected", "not_recorded_sap"].includes(r.sapState))
             .slice().reverse().map(r => <View style={s.record} key={r.id || `${r.type}-${r.time}`}>
             <Ionicons name={MAP[r.type]?.icon || "time-outline"} size={19} color={C.red}/>
             <View style={{ flex: 1 }}>
               <Text style={s.recordTitle}>{MAP[r.type]?.title || "Marcación"}</Text>
-              <Text style={s.muted}>{r.source === "SAP" ? "Registrado en SAP (APP/BTP u otro dispositivo)" :
-                r.sapState === "accepted" ? "Confirmado por SAP" :
-                r.sapState === "not_recorded_sap" ? "No registrado" :
-                r.sapState === "rejected" ? "SAP rechazó la solicitud" : "Pendiente de verificación"}
-                {r.sapState === "accepted" && r.needsJustification &&
-                  (r.justificationState === "accepted" ? " · Justificación confirmada" : " · Justificación por revisar")}</Text>
-              {r.sapStatusReq ? <Text style={s.note}>Estado: {r.sapStatusReq}</Text> : null}
-              {!!r.attendanceIdLog && <Text style={s.note}>Folio SAP: {r.attendanceIdLog}</Text>}
-              {!!r.sapMessage && <Text style={s.note}>{r.sapMessage}</Text>}
-              {!!r.errorDetail && <Text style={s.warning}>{r.errorDetail}</Text>}
-              {!!r.justificationStatus && <Text style={s.note}>Estado justificación: {r.justificationStatus}</Text>}
-              {!!r.justificationMessage && <Text style={s.note}>Justificación: {r.justificationMessage}</Text>}
-              {!!r.justificationIdLog && <Text style={s.note}>Folio incidencia: {r.justificationIdLog}</Text>}
-              {!!r.justificationError && <Text style={s.warning}>Error justificación: {r.justificationError}</Text>}
-              {r.recuperarTiempo === true && <Text style={s.note}>
-                Recuperará tiempo ({r.justificationState === "accepted" ? "justificación confirmada por SAP" : "justificación por confirmar"})
-              </Text>}
+              <Text style={s.muted}>{r.source === "RH_OFFLINE"
+                ? r.estadoOffline === "pendiente" ? "Pendiente de envío"
+                : r.estadoOffline === "confirmado" ? "Enviado · por confirmar en historial"
+                : "Requiere revisión"
+                : r.source === "SAP" ? (sinConexion === true ? "Última consulta SAP" : "Confirmado en SAP")
+                : r.sapState === "accepted" ? "Confirmado en SAP"
+                : "Por verificar"}</Text>
             </View>
             <Text style={s.recordTime}>{r.time || "--:--"}</Text>
           </View>)}
@@ -1346,6 +1679,9 @@ export default function RHAsistencia() {
         <Ionicons name="finger-print-outline" size={29} color={C.red}/>
         <Text style={s.modalTitle}>{dialog?.early ? "Confirmar salida anticipada" : `Confirmar ${MAP[dialog?.tipo]?.title?.toLowerCase() || "registro"}`}</Text>
         <Text style={s.modalText}>Modalidad: {modalidadEfectiva === "HomeOffice" ? "Home Office" : modalidadEfectiva}</Text>
+        {sinConexion === true && <Text style={s.note}>
+          El registro y su justificacion quedaran guardados localmente. SAP aun no los ha recibido.
+        </Text>}
         {!!dialog?.aviso && <Text style={s.modalText}>{dialog.aviso}</Text>}
         {(dialog?.late || dialog?.early) && <>
           <Text style={s.fieldLabel}>Motivo {dialog.late ? "del retardo" : "de salida anticipada"}</Text>
@@ -1365,7 +1701,7 @@ export default function RHAsistencia() {
             value={comentario} onChangeText={setComentario} multiline
             maxLength={500} placeholder="Explica brevemente el motivo (obligatorio)"/>
         </>}
-        <Btn title={busy ? "Guardando…" : "Confirmar registro"} icon="checkmark-circle-outline"
+        <Btn title={busy ? "Guardando…" : (sinConexion === true ? "Guardar en el telefono" : "Confirmar registro")} icon="checkmark-circle-outline"
           disabled={busy} onPress={registrar}/>
         <Btn title="Cancelar" icon="close-outline" outline disabled={busy}
           onPress={() => setDialog(null)}/>

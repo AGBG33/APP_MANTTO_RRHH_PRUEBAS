@@ -19,9 +19,9 @@ const ESTADOS = new Set([
 const TRANSICIONES = {
   pendiente: new Set(["enviando", "revision", "confirmado"]),
   enviando: new Set(["confirmado", "incierto", "rechazado", "revision"]),
-  incierto: new Set(["confirmado", "revision"]),
-  revision: new Set(["confirmado", "rechazado"]),
-  rechazado: new Set(["revision", "confirmado"]),
+  incierto: new Set(["confirmado", "revision", "pendiente"]),
+  revision: new Set(["confirmado", "rechazado", "pendiente"]),
+  rechazado: new Set(["revision", "confirmado", "pendiente"]),
   confirmado: new Set(),
 };
 
@@ -64,6 +64,8 @@ function parsearFila(fila) {
     creadoEn: Number(fila.creado_en),
     actualizadoEn: Number(fila.actualizado_en),
     ultimoError: fila.ultimo_error || "",
+    justificacionEstado: fila.justificacion_estado || "no_aplica",
+    justificacionError: fila.justificacion_error || "",
     // Deliberadamente no devolvemos el payload cifrado en listados de UI.
   };
 }
@@ -85,11 +87,36 @@ export async function iniciarColaPendientesRH() {
           intentos INTEGER NOT NULL DEFAULT 0,
           creado_en INTEGER NOT NULL,
           actualizado_en INTEGER NOT NULL,
-          ultimo_error TEXT NOT NULL DEFAULT ''
+          ultimo_error TEXT NOT NULL DEFAULT '',
+          justificacion_estado TEXT NOT NULL DEFAULT 'no_aplica',
+          justificacion_error TEXT NOT NULL DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS idx_rh_pendientes_usuario_estado
           ON rh_marcaciones_pendientes (usuario_clave, estado, creado_en);
+
+        -- Bitacora de intentos: el error anterior no se pierde al reintentar.
+        CREATE TABLE IF NOT EXISTS rh_historial_envios (
+          evento_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          usuario_clave TEXT NOT NULL,
+          marcacion_id TEXT NOT NULL,
+          etapa TEXT NOT NULL,
+          estado_anterior TEXT NOT NULL,
+          estado_nuevo TEXT NOT NULL,
+          detalle TEXT NOT NULL DEFAULT '',
+          fecha_evento INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_rh_historial_envios
+          ON rh_historial_envios (usuario_clave, marcacion_id, fecha_evento);
       `);
+      // Migracion no destructiva para dispositivos con filas de versiones previas.
+      const columnas = await db.getAllAsync("PRAGMA table_info(rh_marcaciones_pendientes)");
+      const presentes = new Set(columnas.map(c => c.name));
+      if (!presentes.has("justificacion_estado")) {
+        await db.execAsync("ALTER TABLE rh_marcaciones_pendientes ADD COLUMN justificacion_estado TEXT NOT NULL DEFAULT 'no_aplica'");
+      }
+      if (!presentes.has("justificacion_error")) {
+        await db.execAsync("ALTER TABLE rh_marcaciones_pendientes ADD COLUMN justificacion_error TEXT NOT NULL DEFAULT ''");
+      }
       return db;
     })().catch(e => {
       tablaPromise = null;
@@ -109,7 +136,7 @@ export async function iniciarColaPendientesRH() {
  */
 export async function guardarMarcacionPendienteRH({
   personalNumber, email, fechaJornada, fechaMarcacion, horaMarcacion,
-  registerType, payloadProtegido,
+  registerType, payloadProtegido, requiereJustificacion = false,
 }) {
   const usuario = claveUsuarioRH(personalNumber, email);
   if (!fechaValida(fechaJornada) || !fechaValida(fechaMarcacion) ||
@@ -127,10 +154,11 @@ export async function guardarMarcacionPendienteRH({
   const resultado = await db.runAsync(`
     INSERT OR IGNORE INTO rh_marcaciones_pendientes
       (id, usuario_clave, fecha_jornada, fecha_marcacion, hora_marcacion,
-       tipo, payload_protegido, estado, intentos, creado_en, actualizado_en)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'pendiente', 0, ?, ?)
+       tipo, payload_protegido, estado, intentos, creado_en, actualizado_en,
+       justificacion_estado)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'pendiente', 0, ?, ?, ?)
   `, [id, usuario, fechaJornada, fechaMarcacion, horaMarcacion,
-      tipo, payloadProtegido, ahora, ahora]);
+      tipo, payloadProtegido, ahora, ahora, requiereJustificacion ? 'pendiente' : 'no_aplica']);
 
   // No afirmar un nuevo guardado si ya existe: nunca cambiar el payload original.
   const fila = await db.getFirstAsync(`
@@ -145,10 +173,11 @@ export async function listarMarcacionesPendientesRH({ personalNumber, email }) {
   const db = await iniciarColaPendientesRH();
   const filas = await db.getAllAsync(`
     SELECT id, fecha_jornada, fecha_marcacion, hora_marcacion, tipo,
-           estado, intentos, creado_en, actualizado_en, ultimo_error
+           estado, intentos, creado_en, actualizado_en, ultimo_error,
+           justificacion_estado, justificacion_error
     FROM rh_marcaciones_pendientes
     WHERE usuario_clave = ?
-    ORDER BY fecha_jornada ASC, hora_marcacion ASC
+    ORDER BY fecha_marcacion ASC, hora_marcacion ASC, creado_en ASC, id ASC
   `, [usuario]);
   return filas.map(parsearFila);
 }
@@ -169,6 +198,36 @@ export async function leerMarcacionProtegidaRH({ personalNumber, email, id }) {
  * FUTURO: la sincronizacion cambiara estados solo despues de verificar SAP.
  * "incierto" NUNCA regresa a "pendiente" automaticamente.
  */
+// Registro historico no destructivo, separado del payload protegido.
+// Nunca lanzar excepcion DESPUES de actualizar un estado: un fallo en la bitacora
+// no debe convertir una confirmacion SAP exitosa en una falsa incidencia.
+async function registrarEventoRH(db, usuario, id, etapa, anterior, nuevo, detalle) {
+  try {
+    await db.runAsync(`
+      INSERT INTO rh_historial_envios
+        (usuario_clave, marcacion_id, etapa, estado_anterior, estado_nuevo, detalle, fecha_evento)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [usuario, String(id || ""), etapa, String(anterior || ""), String(nuevo || ""),
+        String(detalle || "").slice(0, 350), Date.now()]);
+  } catch (_) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn("[RRHH][OFFLINE] No se pudo actualizar la bitacora de envios.");
+    }
+  }
+}
+
+/** Últimos intentos/errores para diagnóstico; no expone GPS ni el payload. */
+export async function leerBitacoraMarcacionRH({ personalNumber, email, id }) {
+  const usuario = claveUsuarioRH(personalNumber, email);
+  const db = await iniciarColaPendientesRH();
+  return db.getAllAsync(`
+    SELECT etapa, estado_anterior AS estadoAnterior, estado_nuevo AS estadoNuevo,
+           detalle, fecha_evento AS fechaEvento
+    FROM rh_historial_envios WHERE usuario_clave = ? AND marcacion_id = ?
+    ORDER BY evento_id DESC LIMIT 25
+  `, [usuario, String(id || "")]);
+}
+
 export async function cambiarEstadoMarcacionRH({
   personalNumber, email, id, nuevoEstado, error = "",
 }) {
@@ -193,6 +252,7 @@ export async function cambiarEstadoMarcacionRH({
   if (resultado.changes !== 1) {
     throw Error("RRHH offline: otra operacion actualizo la marcacion; volver a consultar.");
   }
+  await registrarEventoRH(db, usuario, id, "marcacion", fila.estado, destino, error);
   return true;
 }
 
@@ -208,4 +268,82 @@ export async function marcarEnviosInterrumpidosComoInciertosRH({ personalNumber,
     WHERE usuario_clave = ? AND estado = 'enviando'
   `, [Date.now(), usuario]);
   return resultado.changes;
+}
+
+// Estado de JustificationLogSet, independiente de AttendanceRecordSet.
+const TRANSICIONES_JUSTIFICACION = {
+  no_aplica: new Set(),
+  pendiente: new Set(["enviando", "revision"]),
+  enviando: new Set(["confirmado", "incierto", "rechazado", "revision"]),
+  incierto: new Set(["revision", "confirmado", "pendiente"]),
+  rechazado: new Set(["revision", "confirmado", "pendiente"]),
+  revision: new Set(["confirmado", "pendiente"]),
+  confirmado: new Set(),
+};
+
+export async function cambiarEstadoJustificacionRH({ personalNumber, email, id, nuevoEstado, error = "" }) {
+  const usuario = claveUsuarioRH(personalNumber, email);
+  const db = await iniciarColaPendientesRH();
+  const fila = await db.getFirstAsync(
+    "SELECT justificacion_estado FROM rh_marcaciones_pendientes WHERE usuario_clave = ? AND id = ?",
+    [usuario, String(id || "")]
+  );
+  if (!fila) throw Error("RRHH offline: no existe la marcacion de esta justificacion.");
+  const origen = fila.justificacion_estado || "no_aplica";
+  if (!TRANSICIONES_JUSTIFICACION[origen]?.has(nuevoEstado)) {
+    throw Error(`RRHH offline: transicion de justificacion no permitida: ${origen} -> ${nuevoEstado}`);
+  }
+  const res = await db.runAsync(`
+    UPDATE rh_marcaciones_pendientes SET justificacion_estado = ?, justificacion_error = ?, actualizado_en = ?
+    WHERE usuario_clave = ? AND id = ? AND justificacion_estado = ?
+  `, [nuevoEstado, String(error || "").slice(0, 350), Date.now(), usuario, String(id || ""), origen]);
+  if (res.changes !== 1) throw Error("RRHH offline: el estado de justificacion cambio mientras se actualizaba.");
+  await registrarEventoRH(db, usuario, id, "justificacion", origen, nuevoEstado, error);
+  return true;
+}
+
+export async function marcarJustificacionesInterrumpidasComoInciertasRH({ personalNumber, email }) {
+  const usuario = claveUsuarioRH(personalNumber, email);
+  const db = await iniciarColaPendientesRH();
+  const resultado = await db.runAsync(`
+    UPDATE rh_marcaciones_pendientes
+    SET justificacion_estado = 'incierto',
+        justificacion_error = 'Envio de justificacion interrumpido: requiere revision RH.',
+        actualizado_en = ?
+    WHERE usuario_clave = ? AND justificacion_estado = 'enviando'
+  `, [Date.now(), usuario]);
+  return resultado.changes;
+}
+
+
+/**
+ * Finaliza únicamente una marcación confirmada por SAP Y cuya justificación,
+ * si existe, también está confirmada. No borra registros pendientes ni inciertos.
+ * La limpieza del secreto se realiza antes, desde rhPendingSecure.js.
+ * Retira además la bitácora de ese comprobante para evitar crecimiento indefinido.
+ */
+export async function eliminarMarcacionConfirmadaRH({ personalNumber, email, id }) {
+  const usuario = claveUsuarioRH(personalNumber, email);
+  const identificador = String(id || "");
+  if (!identificador) throw Error("RRHH: falta identificador para finalizar el comprobante.");
+  const db = await iniciarColaPendientesRH();
+  const resultado = await db.runAsync(`
+    DELETE FROM rh_marcaciones_pendientes
+    WHERE id = ? AND usuario_clave = ? AND estado = 'confirmado'
+      AND justificacion_estado IN ('no_aplica', 'confirmado')
+  `, [identificador, usuario]);
+  if (resultado.changes !== 1) return false;
+  // El historial detallado es útil para fallas, pero no hace falta mantener
+  // indefinidamente los intentos de un registro totalmente confirmado.
+  try {
+    await db.runAsync(
+      "DELETE FROM rh_historial_envios WHERE usuario_clave = ? AND marcacion_id = ?",
+      [usuario, identificador]
+    );
+  } catch (error) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn("[RRHH][CLEANUP] No se pudo compactar la bitacora.");
+    }
+  }
+  return true;
 }

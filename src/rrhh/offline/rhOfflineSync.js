@@ -3,26 +3,37 @@
 // Nunca modifica una hora de marcacion original ni el GPS capturado sin internet.
 // Un timeout despues de iniciar un POST queda INCIERTO: no se reenvia ciegamente.
 import NetInfo from "@react-native-community/netinfo";
-import { leerPerfilRHCache } from "./rhOfflineDb";
+import { leerPerfilRHCache, guardarHistorialRHCache,
+  iniciarConsultaHistorialRH } from "./rhOfflineDb";
 import {
   listarMarcacionesPendientesRH,
   leerMarcacionProtegidaRH,
   cambiarEstadoMarcacionRH,
   marcarEnviosInterrumpidosComoInciertosRH,
+  cambiarEstadoJustificacionRH,
+  marcarJustificacionesInterrumpidasComoInciertasRH,
 } from "./rhPendingDb";
-import { leerSolicitudRHProtegida } from "./rhPendingSecure";
+import { leerSolicitudRHProtegida, finalizarSolicitudRHConfirmada } from "./rhPendingSecure";
 import { consultarHistorialRH } from "../../services/rhHistory";
 import { obtenerEmpleadoRH } from "../../services/rhEmployees";
 import { enviarMarcacionRH } from "../../services/rhAttendance";
+import { enviarJustificacionRH } from "../../services/rhJustifications";
 import { clasificarEmpleadoRH } from "../../services/rhPolicies";
 
 const enEjecucion = new Set();
 const listeners = new Set();
-const VERSION = "rh-sync-v1";
+const VERSION = "rh-sync-v3-orden-y-revision-manual";
 const str = x => String(x ?? "").trim();
 const canon = x => str(x).padStart(8, "0");
 const normEmail = x => str(x).toLowerCase();
 const tipos = Object.freeze({ P10: "p10Time", P15: "p15Time", P25: "p25Time", P20: "p20Time" });
+// Orden real de captura: fecha + hora originales. Nunca ordenar por fechaJornada
+// porque en turnos nocturnos una salida 06:30 es del dia SIGUIENTE.
+const ordenarMarcacionesRH = (a, b) =>
+  str(a.fechaMarcacion).localeCompare(str(b.fechaMarcacion)) ||
+  str(a.horaMarcacion).localeCompare(str(b.horaMarcacion)) ||
+  (Number(a.creadoEn) || 0) - (Number(b.creadoEn) || 0) ||
+  str(a.id).localeCompare(str(b.id));
 
 function emitir(evento, datos = {}) {
   for (const cb of [...listeners]) {
@@ -56,9 +67,12 @@ async function hayRed() {
   const red = await NetInfo.fetch();
   return red.isConnected === true && red.isInternetReachable !== false;
 }
-async function consultarJornada(numero, fechaJornada) {
+async function consultarJornada(numero, fechaJornada, scheduleDetail) {
+  // En un turno nocturno consultar fecha de inicio + día siguiente;
+  // consultarHistorialRH consolida ambas filas de SAP en una jornada.
   const resultado = await consultarHistorialRH({
     personalNumber: numero, desde: fechaJornada, hasta: fechaJornada,
+    scheduleDetail,
   });
   return resultado.jornadas.find(j => j.date === fechaJornada) || null;
 }
@@ -84,18 +98,103 @@ export async function sincronizarPendientesRH({
   if (enEjecucion.has(llave)) return { ok: false, reason: "en_curso" };
   enEjecucion.add(llave);
   let huboCambios = false;
+  const fechasConfirmadas = new Set();
   const res = { ok: true, version: VERSION, confirmados: 0, enviados: 0, revision: 0, inciertos: 0,
-    restantes: null, reason: "" };
+    justificacionesConfirmadas: 0, limpiados: 0, restantes: null, reason: "" };
   const cambiar = async (fila, nuevoEstado, error = "") => {
     await cambiarEstadoMarcacionRH({ personalNumber: numero, email: correo, id: fila.id, nuevoEstado, error });
     huboCambios = true;
     emitir("actualizacion", { id: fila.id, estado: nuevoEstado });
   };
+  const cambiarJust = async (fila, nuevoEstado, error = "") => {
+    await cambiarEstadoJustificacionRH({
+      personalNumber: numero, email: correo, id: fila.id, nuevoEstado, error,
+    });
+    huboCambios = true;
+    emitir("actualizacion", { id: fila.id, justificacionEstado: nuevoEstado });
+  };
+
+  // Limpiar el comprobante ya finalizado. La cola NO es un historial de
+  // asistencias: los registros confirmados se leen desde SAP/SQLite de consulta.
+  // Nunca se eliminan marcaciones inciertas ni justificaciones sin confirmar.
+  const finalizar = async fila => {
+    try {
+      const eliminado = await finalizarSolicitudRHConfirmada({
+        personalNumber: numero, email: correo, id: fila.id,
+      });
+      if (!eliminado) {
+        res.ok = false; res.reason = "limpieza_no_confirmada";
+        res.detail = "La marcacion o su justificacion aun no estan totalmente confirmadas.";
+        return false;
+      }
+      res.limpiados++;
+      huboCambios = true;
+      fechasConfirmadas.add(fila.fechaJornada);
+      emitir("actualizacion", { id: fila.id, estado: "finalizado" });
+      if (__DEV__) console.log("[RRHH][SYNC] Comprobante confirmado retirado de pendientes", fila.tipo, fila.fechaJornada);
+      return true;
+    } catch (error) {
+      res.ok = false; res.reason = "limpieza_local";
+      res.detail = errorCorto(error);
+      if (__DEV__) console.warn("[RRHH][SYNC] No se pudo finalizar comprobante confirmado:", errorCorto(error));
+      return false;
+    }
+  };
+
+  // Una justificacion se envia SOLO despues de confirmar AttendanceRecordSet.
+  // La columna propia persiste aunque Android cierre la app.
+  const procesarJustificacion = async (fila) => {
+    const estado = fila.justificacionEstado || "no_aplica";
+    if (["no_aplica", "confirmado"].includes(estado)) return true;
+    if (estado !== "pendiente") {
+      res.ok = false; res.reason = "justificacion_requiere_revision";
+      res.detail = `Justificacion ${estado}: verificar en RH antes de reenviar.`;
+      return false;
+    }
+    if (!shouldContinue() || !(await hayRed())) {
+      res.ok = false; res.reason = "sin_red"; return false;
+    }
+    let comprobante;
+    try {
+      comprobante = await leerSolicitudRHProtegida({
+        personalNumber: numero, email: correo, id: fila.id,
+      });
+      const j = comprobante?.justificacion;
+      if (!j || j.PersonalNumber === undefined ||
+          canon(j.PersonalNumber) !== canon(numero) ||
+          j.WorkDate !== fila.fechaMarcacion || j.RegisterHourLate !== fila.horaMarcacion ||
+          j.RegisterType !== fila.tipo) {
+        throw Error("Justificacion original ausente o no coincide con la marcacion.");
+      }
+    } catch (error) {
+      await cambiarJust(fila, "revision", errorCorto(error));
+      res.ok = false; res.reason = "comprobante_justificacion";
+      res.detail = errorCorto(error); return false;
+    }
+    await cambiarJust(fila, "enviando");
+    try {
+      const resultado = await enviarJustificacionRH(comprobante.justificacion);
+      await cambiarJust(fila, "confirmado");
+      res.justificacionesConfirmadas++;
+      if (__DEV__) console.log("[RRHH][SYNC] Justificacion confirmada por SAP", fila.tipo, fila.fechaJornada, resultado.status);
+      return true;
+    } catch (error) {
+      const nuevoEstado = bloqueante(error) ? "rechazado" : "incierto";
+      try { await cambiarJust(fila, nuevoEstado, errorCorto(error)); } catch (_) {}
+      res.ok = false; res.reason = `justificacion_${nuevoEstado}`;
+      res.detail = errorCorto(error);
+      return false;
+    }
+  };
+
   try {
     if (!shouldContinue() || !(await hayRed())) return { ok: false, reason: "sin_red" };
     // Primera lectura sin acceder a SAP. Cuando no hay registros, cero peticiones adicionales.
     let filas = await listarMarcacionesPendientesRH({ personalNumber: numero, email: correo });
-    if (!filas.some(f => f.estado !== "confirmado")) return { ...res, reason: "sin_pendientes" };
+    filas.sort(ordenarMarcacionesRH);
+    // Aunque todas las filas ya estén confirmadas, NO salir aquí: todavía
+    // hay que retirar sus comprobantes protegidos y compactar SQLite.
+    if (filas.length === 0) return { ...res, reason: "sin_pendientes" };
     if (typeof ensureValidToken !== "function" || !(await ensureValidToken())) {
       return { ok: false, reason: "sesion_sin_token" };
     }
@@ -123,41 +222,65 @@ export async function sincronizarPendientesRH({
     if (!shouldContinue()) return { ok: false, reason: "sesion_cambiada" };
 
     const interrumpidos = await marcarEnviosInterrumpidosComoInciertosRH({ personalNumber: numero, email: correo });
-    if (interrumpidos > 0) huboCambios = true;
+    const justInterrumpidas = await marcarJustificacionesInterrumpidasComoInciertasRH({
+      personalNumber: numero, email: correo,
+    });
+    if (interrumpidos > 0 || justInterrumpidas > 0) huboCambios = true;
     filas = await listarMarcacionesPendientesRH({ personalNumber: numero, email: correo });
+    filas.sort(ordenarMarcacionesRH);
     emitir("actualizacion", { estado: "revisando" });
 
+    // La lista proviene de rhPendingDb: fecha REAL + hora REAL de marcacion,
+    // no fecha de jornada. Ordena correctamente turnos nocturnos 23:00-07:00.
+    // Ante cualquier falla se DETIENE: ningun paso posterior adelanta al previo.
     for (const fila of filas) {
       if (!shouldContinue() || !(await hayRed())) { res.ok = false; res.reason = "sin_red"; break; }
-      if (fila.estado === "confirmado") continue;
+      if (fila.estado === "confirmado") {
+        if (!(await procesarJustificacion(fila))) break;
+        if (!(await finalizar(fila))) break;
+        continue;
+      }
 
       let jornada;
-      try { jornada = await consultarJornada(numero, fila.fechaJornada); }
+      try { jornada = await consultarJornada(numero, fila.fechaJornada, perfil.scheduleDetail); }
       catch (e) {
         res.ok = false; res.reason = "historial_sap"; res.detail = errorCorto(e);
         break; // Si SAP no responde, NO se hace POST.
       }
       const verificacion = revisarMovimientoSAP(jornada, fila);
       if (verificacion === "confirmado") {
-        try { await cambiar(fila, "confirmado"); res.confirmados++; }
+        try { await cambiar(fila, "confirmado"); res.confirmados++; fechasConfirmadas.add(fila.fechaJornada); }
         catch (e) { res.ok = false; res.reason = "estado_local"; res.detail = errorCorto(e); break; }
+        if (!(await procesarJustificacion({ ...fila, estado: "confirmado" }))) break;
+        if (!(await finalizar(fila))) break;
         continue;
       }
       if (verificacion === "conflicto") {
         if (fila.estado !== "revision") await cambiar(fila, "revision", "SAP registra ese movimiento con otra hora: requiere revisión por RH.");
         res.revision++;
+        res.ok = false;
         res.reason = "conflicto";
+        res.detail = "SAP tiene una marcacion con otra hora: requiere revision RH.";
         break; // Bloquear los siguientes movimientos dependientes.
       }
       // Rechazos tampoco se reenvían; solo se reconcilian contra el historial.
-      if (fila.estado === "rechazado") { res.reason = "rechazado"; break; }
-      // No repetir automáticamente algo que pudo haberse procesado.
-      if (fila.estado === "incierto" || fila.estado === "revision") {
-        res.inciertos++;
-        res.reason = "requiere_revision";
+      if (fila.estado === "rechazado") {
+        res.ok = false; res.reason = "rechazado";
+        res.detail = fila.ultimoError || "SAP rechazo este registro; revisalo antes de reenviar.";
         break;
       }
-      if (fila.estado !== "pendiente") { res.reason = "estado_invalido"; break; }
+      // No repetir automáticamente algo que pudo haberse procesado.
+      if (fila.estado === "incierto" || fila.estado === "revision") {
+        res.inciertos++; res.ok = false;
+        res.reason = "requiere_revision";
+        res.detail = fila.ultimoError || "Esta marcacion requiere revision antes del reenvio manual.";
+        break;
+      }
+      if (fila.estado !== "pendiente") {
+        res.ok = false; res.reason = "estado_invalido";
+        res.detail = "Estado de cola inesperado: no se reenviara automaticamente.";
+        break;
+      }
 
       // Validacion de integridad: recuperar el payload original (GPS y hora exactos).
       let comprobante;
@@ -182,6 +305,7 @@ export async function sincronizarPendientesRH({
         const resultado = await enviarMarcacionRH(payload); // HTTP2xx + StatusReq=OK
         await cambiar({ ...fila, estado: "enviando" }, "confirmado");
         res.enviados++; res.confirmados++;
+        fechasConfirmadas.add(fila.fechaJornada);
         if (__DEV__) console.log("[RRHH][SYNC] Marcación confirmada por SAP", fila.tipo, fila.fechaJornada,
           resultado.statusReq);
       } catch (e) {
@@ -193,9 +317,31 @@ export async function sincronizarPendientesRH({
         res.ok = false; res.reason = nuevoEstado; res.detail = errorCorto(e);
         break;
       }
+      if (!(await procesarJustificacion({ ...fila, estado: "confirmado" }))) break;
+      if (!(await finalizar(fila))) break;
+    }
+    // La sincronizacion puede ejecutarse sin la pantalla de asistencia abierta.
+    // Después de cambiar el estado de la cola, volver a LEER SAP y actualizar
+    // la copia diaria: al desconectarse no deben reaparecer horas antiguas.
+    // Una lectura fallida no cambia un POST ya confirmado ni borra pendientes.
+    for (const fecha of fechasConfirmadas) {
+      if (!shouldContinue() || !(await hayRed())) break;
+      const ticketConsulta = iniciarConsultaHistorialRH();
+      try {
+        const respuesta = await consultarHistorialRH({
+          personalNumber: numero, desde: fecha, hasta: fecha,
+          scheduleDetail: perfil.scheduleDetail,
+        });
+        await guardarHistorialRHCache({ personalNumber: numero, email: correo,
+          desde: fecha, hasta: fecha, jornadas: respuesta.jornadas, ticketConsulta });
+      } catch (errorCache) {
+        if (__DEV__) console.warn("[RRHH][CACHE] No se pudo conciliar jornada despues del envio:",
+          errorCache?.message || errorCache);
+      }
     }
     const restante = await listarMarcacionesPendientesRH({ personalNumber: numero, email: correo });
-    res.restantes = restante.filter(f => f.estado !== "confirmado").length;
+    res.restantes = restante.filter(f => f.estado !== "confirmado" ||
+      !["no_aplica", "confirmado"].includes(f.justificacionEstado)).length;
     return res;
   } catch (e) {
     res.ok = false; res.reason = res.reason || "error_interno"; res.detail = errorCorto(e);
