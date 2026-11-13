@@ -13,6 +13,7 @@ import SideDrawer from "../src/components/SideDrawer";
 import { OfflineProvider } from "../src/offline/OfflineProvider";
 import AnimatedSplashVideo from "../src/components/AnimatedSplashVideo";
 import RHOfflineSyncAgent from "../src/rrhh/components/RHOfflineSyncAgent";
+import RHDelaysPreloadAgent from "../src/rrhh/components/RHDelaysPreloadAgent";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -42,6 +43,7 @@ export default function RootLayout() {
       <AuthProvider>
         <SapEmployeeProvider>
           <RHOfflineSyncAgent/>
+          <RHDelaysPreloadAgent/>
           <OrdenesTecnicoProvider>
             <UbicacionProvider>
               <DrawerProvider>

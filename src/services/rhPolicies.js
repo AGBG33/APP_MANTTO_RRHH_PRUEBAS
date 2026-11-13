@@ -18,6 +18,8 @@ const NAMES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", 
 const TOKEN = "(MI|X|L|M|J|V|S|D)";
 const MINUTO = 60 * 1000;
 const HORA = 60 * MINUTO;
+const COMIDA_DESDE_MIN = 12 * 60;
+const COMIDA_HASTA_MIN = 14 * 60 + 30;
 const pad = n => String(n).padStart(2, "0");
 
 export function minutosReloj(date = new Date()) {
@@ -213,7 +215,7 @@ function primerRegistro(registros, tipo) {
 
 /**
  * Tolerancias: P10 desde -15 minutos; retardo después de +10 minutos.
- * P25 permitido desde P15 hasta 60 minutos después, inclusive.
+ * P15 y P25 disponibles entre las 12:00 y las 14:30, sin límite de duración de comida.
  */
 export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new Date(), modalidad = "Presencial" }) {
   const p = clasificarEmpleadoRH(empleado);
@@ -253,7 +255,8 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
   catch (e) { return { permitido: false, mensaje: e.message }; }
 
   const momento = ahora.getTime();
-  const hora = minutosReloj(ahora);
+  // Se evalúa por minuto: 14:30:59 sigue permitido; 14:31:00 ya no.
+  const hora = Math.floor(minutosReloj(ahora));
   const entrada = primerRegistro(jornada, "entrada");
   const inicioComida = primerRegistro(jornada, "comida_inicio");
   const regresoComida = primerRegistro(jornada, "comida_fin");
@@ -283,12 +286,12 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
 
   if (tipo === "comida_inicio") {
     if (inicioComida) return { permitido: false, mensaje: "Ya registraste inicio de comida en esta jornada." };
-    // Se mantiene la regla previa de comida 12:00-13:00 para personal de confianza.
-    if (p.confianza && (hora < 720 || hora > 780)) {
-      return { permitido: false, mensaje: "Confianza: inicia la comida de 12:00 a 13:00." };
+    // P15 puede registrarse en cualquier minuto de la ventana de comida.
+    if (p.confianza && (hora < COMIDA_DESDE_MIN || hora > COMIDA_HASTA_MIN)) {
+      return { permitido: false, mensaje: "El inicio de comida se permite de 12:00 a 14:30." };
     }
     return { permitido: true,
-      aviso: "El regreso de comida se habilita inmediatamente y permanecerá disponible durante los siguientes 60 minutos." };
+      aviso: "El regreso de comida estará disponible después de este registro y hasta las 14:30." };
   }
   if (tipo === "comida_fin") {
     if (!inicioComida) return { permitido: false, mensaje: "Primero registra el inicio de comida." };
@@ -296,12 +299,13 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
     const inicioMs = fechaHoraRegistroRH(inicioComida);
     if (inicioMs === null) return { permitido: false, mensaje: "No se pudo comprobar la hora de inicio de comida." };
     if (momento < inicioMs) return { permitido: false, mensaje: "El inicio de comida todavía no ha ocurrido." };
-    if (momento > inicioMs + HORA) return { permitido: false, fueraDeVentanaComida: true,
-      mensaje: "Terminó la hora permitida para registrar regreso de comida. Solo puedes registrar la salida." };
-    // Se conserva la regla anterior de límite a las 14:00 para personal de confianza.
-    if (p.confianza && hora > 840) return { permitido: false, fueraDeVentanaComida: true,
-      mensaje: "Terminó la ventana de comida de confianza a las 14:00." };
-    return { permitido: true, aviso: "Regreso registrado dentro de los 60 minutos posteriores al inicio de comida." };
+    // No hay máximo de 60 minutos desde P15. La única fecha/hora límite
+    // es la ventana de comida, con independencia de cuándo se inició P15.
+    if (p.confianza && hora < COMIDA_DESDE_MIN) return { permitido: false,
+      mensaje: "El regreso de comida se habilita a las 12:00." };
+    if (p.confianza && hora > COMIDA_HASTA_MIN) return { permitido: false, fueraDeVentanaComida: true,
+      mensaje: "Terminó la ventana de comida a las 14:30. Solo puedes registrar la salida." };
+    return { permitido: true, aviso: "Regreso de comida dentro del horario permitido de 12:00 a 14:30." };
   }
   if (tipo === "salida") {
     const despues = turno.valido && momento > turno.finMs;

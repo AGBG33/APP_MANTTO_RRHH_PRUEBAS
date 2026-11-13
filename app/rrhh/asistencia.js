@@ -25,6 +25,8 @@ import {
 import { prepararMarcacionRH, enviarMarcacionRH } from "../../src/services/rhAttendance";
 import { prepararJustificacionRH, enviarJustificacionRH } from "../../src/services/rhJustifications";
 import { consultarHistorialRH } from "../../src/services/rhHistory";
+import { consultarRetardosRH, cicloRetardosRH } from "../../src/services/rhDelays";
+import { guardarRetardosRHCache, leerRetardosRHCache, leerCuartoRetardoRH } from "../../src/rrhh/offline/rhDelaysCache";
 import { obtenerEmpleadoRH } from "../../src/services/rhEmployees";
 import { esHomeOfficeEmpleadoRH, esViajeRH, semanaLaboralRH, mesLaboralRH,
   resumirReglasRH, movimientosDesdeHistoryRH } from "../../src/services/rhBusinessRules";
@@ -141,6 +143,12 @@ export default function RHAsistencia() {
   const [sinConexion, setSinConexion] = useState(null);
   const [colaRH, setColaRH] = useState({ identidad: "", filas: [], cargando: true, error: "" });
   const [revisionColaRH, setRevisionColaRH] = useState(0);
+  // Total mensual confirmado por ProcessingDelaysSet y bloqueo local durable.
+  // La cache de otra cuenta o mes nunca habilita una marcacion.
+  const [retardosOffline, setRetardosOffline] = useState({
+    identidad: "", fechaJornada: "", totalDelays: null,
+    totalAbsences: null, vigente: false, cargando: true, cuartoLocal: false,
+  });
   // La misma pantalla usa la ultima jornada confirmada por SAP cuando no hay internet.
   // Es solo una copia de consulta; JAMAS equivale a una nueva confirmacion SAP.
   const [historialOffline, setHistorialOffline] = useState({
@@ -379,8 +387,48 @@ export default function RHAsistencia() {
     historialOffline.fechaJornada === fechaJornada && !!historialOffline.guardadoEn;
   const jornadaCache = historialLocalVigente
     ? historialOffline.jornadas.find(j => j.date === fechaJornada) || null : null;
+  // Se lee también online para conservar el bloqueo de un 4.º retardo
+  // capturado offline aun después de borrar su fila al sincronizar.
+  useEffect(() => {
+    let activo = true;
+    const identidad = `${personalNumber}|${correo.toLowerCase()}`;
+    if (!personalNumber || !mailOK(correo) || !/^\d{4}-\d{2}-\d{2}$/.test(fechaJornada)) {
+      setRetardosOffline({ identidad, fechaJornada, totalDelays: null,
+        totalAbsences: null, vigente: false, cargando: false, cuartoLocal: false });
+      return;
+    }
+    setRetardosOffline(anterior => ({ ...anterior, identidad, fechaJornada, cargando: true }));
+    Promise.all([
+      leerRetardosRHCache({ personalNumber, email: correo, fechaJornada }),
+      leerCuartoRetardoRH({ personalNumber, email: correo, fechaJornada }),
+    ]).then(([conteo, bloqueo]) => {
+      if (!activo) return;
+      setRetardosOffline({ identidad, fechaJornada,
+        totalDelays: conteo?.totalDelays ?? null,
+        totalAbsences: conteo?.totalAbsences ?? null,
+        vigente: conteo?.vigente === true,
+        cargando: false, cuartoLocal: !!bloqueo });
+    }).catch(error => {
+      if (!activo) return;
+      if (__DEV__) console.warn("[RRHH][RETARDOS] No se pudo leer cache local:", error?.message);
+      setRetardosOffline({ identidad, fechaJornada, totalDelays: null,
+        totalAbsences: null, vigente: false, cargando: false, cuartoLocal: false });
+    });
+    return () => { activo = false; };
+  }, [personalNumber, correo, fechaJornada, revisionColaRH, sinConexion]);
+  const retardosDeEstaJornada = retardosOffline.identidad === `${personalNumber}|${correo.toLowerCase()}` &&
+    retardosOffline.fechaJornada === fechaJornada;
+  // Fallback: si Android se cerró entre guardar P10 y crear el bloqueo local,
+  // la propia cola protegida también prueba que ya existe la entrada del 4.º.
+  const cuartoEnCola = retardosDeEstaJornada && retardosOffline.vigente &&
+    retardosOffline.totalDelays % 4 === 3 && !!turno?.valido &&
+    pendientesOffline.some(f => f.fechaJornada === fechaJornada && f.tipo === "P10" &&
+      Number.isFinite(Date.parse(`${f.fechaMarcacion}T${f.horaMarcacion}`)) &&
+      Date.parse(`${f.fechaMarcacion}T${f.horaMarcacion}`) > turno.inicioMs + 10 * 60000);
+  const cuartoLocalDia = retardosDeEstaJornada && (retardosOffline.cuartoLocal || cuartoEnCola);
 
-  // La consulta mensual sirve para retardos + jornada de hoy; la semanal para la cuota HO.
+  // Historial mensual: jornada, estatus y cuota de Home Office.
+  // El conteo de retardos proviene EXCLUSIVAMENTE de ProcessingDelaysSet.
   // Si toda la semana cabe en el mes, no se repite la petición.
   const obtenerEstadoSAP = useCallback(async (instante = new Date()) => {
     if (!personalNumber || !mailOK(correo)) throw Error("Identidad no disponible para validar SAP.");
@@ -393,10 +441,56 @@ export default function RHAsistencia() {
     const fecha = turnoActual?.fechaJornada || hoyISO(instante);
     const mes = mesLaboralRH(fecha);
     const semana = semanaLaboralRH(fecha);
+    // Siempre consultar el total oficial actualizado antes de habilitar botones.
+    // Sin una respuesta valida no se regresa al conteo antiguo por DayStatus.
+    const resumenRetardos = await consultarRetardosRH({
+      personalNumber: perfil.personalNumber, fechaJornada: fecha,
+    });
+    try {
+      await guardarRetardosRHCache({ personalNumber: perfil.personalNumber,
+        email: correo, fechaJornada: fecha, resumen: resumenRetardos });
+    } catch (errorCache) {
+      // El conteo SAP ya funcionó. Un error SQLite no bloquea online.
+      if (__DEV__) console.warn("[RRHH][RETARDOS] No se pudo guardar conteo offline:", errorCache?.message);
+    }
     const consultaMes = iniciarConsultaHistorialRH();
-    const mesRespuesta = await consultarHistorialRH({ personalNumber: perfil.personalNumber,
+    let mesRespuesta = await consultarHistorialRH({ personalNumber: perfil.personalNumber,
       desde: mes.desde, hasta: mes.hasta,
       scheduleDetail: perfil.scheduleDetail });
+    // Protección de viaje: hay servicios SAP que devuelven la jornada actual
+    // en consulta diaria, pero no traen el P10 en el rango mensual.
+    // Solo en RelationJob=04 y si al mes le falta la entrada, consultar el día
+    // exacto y conciliar ANTES de permitir cualquier nuevo registro.
+    const conHoraSAP = h => /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(String(h || "")) && h !== "00:00:00";
+    const entradaMes = mesRespuesta.jornadas.find(j => j.date === fecha && conHoraSAP(j.p10Time));
+    if (esViajeRH(perfil) && !entradaMes) {
+      const exacta = await consultarHistorialRH({
+        personalNumber: perfil.personalNumber,
+        desde: fecha, hasta: fecha, scheduleDetail: perfil.scheduleDetail,
+      });
+      const jornadaDia = exacta.jornadas.find(j => j.date === fecha) || null;
+      if (__DEV__) console.log("[RRHH][VIAJE][CONSULTA-DIA]", {
+        huboEntradaMes: false, huboEntradaDia: conHoraSAP(jornadaDia?.p10Time),
+      });
+      if (jornadaDia) {
+        const previa = mesRespuesta.jornadas.find(j => j.date === fecha) || null;
+        const preferirHora = (a, b) => conHoraSAP(a) ? a : b;
+        const consolidada = previa ? {
+          ...previa,
+          p10Time: preferirHora(previa.p10Time, jornadaDia.p10Time),
+          p15Time: preferirHora(previa.p15Time, jornadaDia.p15Time),
+          p25Time: preferirHora(previa.p25Time, jornadaDia.p25Time),
+          p20Time: preferirHora(previa.p20Time, jornadaDia.p20Time),
+          dayStatus: previa.dayStatus || jornadaDia.dayStatus,
+          relationJob: previa.relationJob || jornadaDia.relationJob,
+          relationJobDescription: previa.relationJobDescription || jornadaDia.relationJobDescription,
+          typeSession: previa.typeSession || jornadaDia.typeSession,
+        } : jornadaDia;
+        mesRespuesta = { ...mesRespuesta, jornadas: [
+          ...mesRespuesta.jornadas.filter(j => j.date !== fecha), consolidada,
+        ].sort((a, b) => b.date.localeCompare(a.date)) };
+      }
+    }
     // El cache offline se actualiza con ESTA misma respuesta SAP (tambien si
     // SAP devuelve la jornada sin salida). Antes solo se actualizaba la pantalla.
     let cacheError = false;
@@ -424,14 +518,22 @@ export default function RHAsistencia() {
         if (__DEV__) console.warn("[RRHH][CACHE] No se actualizo copia semanal:", errorCache?.message || errorCache);
       }
     }
-    const resumen = resumirReglasRH({ jornadasMes: mesRespuesta.jornadas,
-      jornadasSemana: semanaRespuesta.jornadas, fechaJornada: fecha });
+    const resumen = {
+      ...resumirReglasRH({ jornadasMes: mesRespuesta.jornadas,
+        jornadasSemana: semanaRespuesta.jornadas, fechaJornada: fecha }),
+      // Nunca tomar retardosPrevios desde DayStatus RETARDO.
+      retardosPrevios: resumenRetardos.totalDelays,
+      totalAbsencesSAP: resumenRetardos.totalAbsences,
+    };
     if (__DEV__) console.log("[RRHH][SAP][JORNADA]", {
       fechaJornada: fecha,
       fechaEnHistorial: resumen.jornadaSAP?.date || null,
       entradaSAP: resumen.jornadaSAP?.p10Time || null,
       salidaSAP: resumen.jornadaSAP?.p20Time || null,
       consulta: "AttendanceHistorySet (mes)",
+      relacionLaboralHistorial: resumen.jornadaSAP?.relationJob || "",
+      estadoDia: resumen.jornadaSAP?.dayStatus || "",
+      filasJornada: resumen.jornadaSAP ? 1 : 0,
     });
     return { verificado: true, cargando: false, error: "", perfil,
       jornadasMes: mesRespuesta.jornadas, jornadasSemana: semanaRespuesta.jornadas,
@@ -485,9 +587,16 @@ export default function RHAsistencia() {
     estadoSAP.fechaJornada === fechaJornada && norm(estadoSAP.perfil?.personalNumber) === personalNumber;
   const jornadaRemota = sapListo ? estadoSAP.resumen?.jornadaSAP :
     sinConexion === true ? jornadaCache : null;
-  const movimientosRemotos = useMemo(() =>
-    jornadaRemota ? movimientosDesdeHistoryRH(jornadaRemota, turno) : [],
-    [jornadaRemota, turno?.inicioMs, turno?.finMs, fechaJornada]);
+  const movimientosRemotos = useMemo(() => {
+    if (!jornadaRemota) return [];
+    const tieneViaje = esViajeRH(estadoSAP.perfil) || esViajeRH(jornadaRemota) ||
+      jornadaRemota.typeSession === "VN";
+    return movimientosDesdeHistoryRH(jornadaRemota, turno).map(mov =>
+      tieneViaje && mov.type === "entrada"
+        ? { ...mov, modality: "Viaje de negocios", typeSession: "VN" }
+        : mov);
+  }, [jornadaRemota, turno?.inicioMs, turno?.finMs, fechaJornada,
+    estadoSAP.perfil?.relationJob]);
   // Tanto online como offline, los pasos VERDES vienen EXCLUSIVAMENTE
   // de AttendanceHistorySet (respuesta actual SAP o su ultima copia SQLite).
   // Los acuses historicos de AsyncStorage y la cola se conservan para auditoria,
@@ -552,14 +661,19 @@ export default function RHAsistencia() {
   const hayRegistroSAP = !!movimientosRemotos.length;
   const hoyEnHomeOffice = !!(sapListo && (estadoSAP.resumen?.homeOfficeHoy ||
     esHomeOfficeEmpleadoRH(estadoSAP.perfil)));
-  const viajeActivo = !!(sapListo && esViajeRH(estadoSAP.perfil));
+  const viajeActivo = !!(sapListo && (esViajeRH(estadoSAP.perfil) ||
+    esViajeRH(jornadaRemota) || jornadaRemota?.typeSession === "VN"));
   const viajeYaEnviado = aceptados.some(r => r.type === "entrada" &&
     (r.typeSession === "VN" || r.modality === "Viaje de negocios"));
-  const previoTardanzas = sapListo ? estadoSAP.resumen?.retardosPrevios || 0 : 0;
+  const previoTardanzas = sapListo ? estadoSAP.resumen?.retardosPrevios ?? 0 :
+    (retardosDeEstaJornada && retardosOffline.vigente ? retardosOffline.totalDelays : 0);
   const plazoRetardo = turno?.valido ? turno.inicioMs + 10 * 60000 : Infinity;
-  const esCuartoAhora = sapListo && !entrada && previoTardanzas >= 3 && ahora.getTime() > plazoRetardo;
-  const entradaFueCuarto = !!entrada && (deHoy.some(r => r.type === "entrada" && r.fourthLate) ||
-    (previoTardanzas >= 3 && (() => {
+  const siguienteEsCuarto = Number.isSafeInteger(previoTardanzas) &&
+    cicloRetardosRH(previoTardanzas).cuartoEnSiguienteEntrada;
+  const esCuartoAhora = (sapListo || (sinConexion === true && retardosDeEstaJornada && retardosOffline.vigente)) &&
+    !entrada && siguienteEsCuarto && ahora.getTime() > plazoRetardo;
+  const entradaFueCuarto = cuartoLocalDia || (!!entrada && (deHoy.some(r => r.type === "entrada" && r.fourthLate) ||
+    (siguienteEsCuarto && (() => {
       const fecha = entrada?.date;
       const hora = entrada?.registerHour || entrada?.time;
       if (!fecha || !hora) return false;
@@ -569,19 +683,20 @@ export default function RHAsistencia() {
       if (!h) return false;
       const instante = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(h[1]), Number(h[2]));
       return instante.getTime() > plazoRetardo;
-    })()));
+    })())));
   // Una petición de cuarto retardo incierta también bloquea continuación hasta
   // que SAP/RH determine su resultado: nunca asumir que un timeout = no guardado.
   const cuartoPendienteConfirmar = deHoy.some(r => r.type === "entrada" && r.fourthLate &&
     ["accepted", "sending", "uncertain", "rejected"].includes(r.sapState));
   // El estatus 04 permite la PRIMERA entrada de viaje, pero no más movimientos.
   // Antes se bloqueaba por el simple hecho de tener RelationJob=04.
-  const bloqueadaJornadaSAP = sapListo && (estadoSAP.resumen?.inasistenciaSAP ||
-    (viajeActivo && !!entrada) || viajeYaEnviado || entradaFueCuarto || cuartoPendienteConfirmar);
+  const bloqueadaJornadaSAP = cuartoLocalDia || (sapListo && (estadoSAP.resumen?.inasistenciaSAP ||
+    (viajeActivo && !!entrada) || viajeYaEnviado || entradaFueCuarto || cuartoPendienteConfirmar));
   const cuotaHOUsada = !!(sapListo && estadoSAP.resumen?.homeOfficeUsadoSemana);
   const modalidades = empleadoVigente ? modalidadesPermitidasRH(empleadoVigente) : ["Presencial"];
   const modalidadConfirmadaLocal = aceptados.find(x => x.modality && x.source !== "SAP")?.modality;
   const modalidadRegistrada = hoyEnHomeOffice ? "HomeOffice" :
+    viajeActivo && hayRegistroSAP ? "Viaje de negocios" :
     (modalidadConfirmadaLocal || (hayRegistroSAP ? "Presencial" : null));
   // El cuarto retardo se procesa como una entrada presencial simple, sin selección
   // de modalidad ni solicitud de justificación en la app.
@@ -607,6 +722,12 @@ export default function RHAsistencia() {
   }, [storageKey]);
   const revisar = tipo => {
     if (sinConexion === true) {
+      if (cuartoLocalDia) return { permitido: false,
+        mensaje: "Se registró el cuarto retardo del ciclo. Solo se permite la entrada; los demás checks están bloqueados por inasistencia." };
+      if (!retardosDeEstaJornada || retardosOffline.cargando || !retardosOffline.vigente) {
+        return { permitido: false,
+          mensaje: "No hay un total mensual vigente de ProcessingDelaysSet. Conéctate para preparar los retardos antes de registrar offline." };
+      }
       if (cargandoColaRH || errorColaRH || historialOffline.cargando) {
         return { permitido: false, mensaje: "Comprobando la informacion guardada de RRHH." };
       }
@@ -966,7 +1087,7 @@ export default function RHAsistencia() {
     }
     setMotivo("Laboral"); setComentario(""); setRecuperarTiempo(false);
     setDialog({ tipo, offline: sinConexion === true, aviso: esCuartoAhora ?
-      "Este sería tu cuarto retardo del mes. SAP determinará si corresponde inasistencia. Se enviará únicamente la entrada normal." : resultado.aviso,
+      "Este sería el cuarto retardo de tu ciclo mensual. Se enviará únicamente la entrada; los demás checks quedarán bloqueados por inasistencia." : resultado.aviso,
       late: !esCuartoAhora && !!resultado.retardo,
       early: !esCuartoAhora && !!resultado.salidaAnticipada,
       fourth: !!esCuartoAhora });
@@ -996,10 +1117,19 @@ export default function RHAsistencia() {
       remotos.some(x => x.type === r.type)));
     const marcacionEntrada = combinados.find(r => r.type === "entrada" && r.sapState === "accepted" &&
       registrosDeJornadaRH([r], turn, new Date()).length > 0);
+    // RelationJob=04 puede venir en EmployeeSet o en AttendanceHistorySet,
+    // incluso si DayStatus dice PRESENTE. No enviar otro P10 una vez que SAP
+    // ya muestra entrada ni habilitar P15/P25/P20 durante viaje de negocios.
+    const viajeEnSAP = esViajeRH(estado.perfil) ||
+      esViajeRH(estado.resumen.jornadaSAP) || estado.resumen.jornadaSAP?.typeSession === "VN";
     const localViaje = combinados.some(r => r.type === "entrada" && r.sapState === "accepted" &&
       (r.typeSession === "VN" || r.modality === "Viaje de negocios"));
+    if (marcacionEntrada && (viajeEnSAP || localViaje)) {
+      throw Error("SAP ya confirmó la entrada de VIAJE DE NEGOCIOS. No se permiten nuevas marcaciones en esta jornada.");
+    }
     if (localViaje) throw Error("Ya registraste tu viaje de negocios. No debes realizar más marcaciones.");
-    const cuarto = tipo === "entrada" && !marcacionEntrada && estado.resumen.retardosPrevios >= 3 &&
+    const cuarto = tipo === "entrada" && !marcacionEntrada &&
+      cicloRetardosRH(estado.resumen.retardosPrevios).cuartoEnSiguienteEntrada &&
       turn?.valido && Date.now() > turn.inicioMs + 10 * 60000;
     const modalidadActual = cuarto ? "Presencial" :
       (esHomeOfficeEmpleadoRH(estado.perfil) || estado.resumen.homeOfficeHoy ? "HomeOffice" : modalidadDeseada);
@@ -1010,8 +1140,9 @@ export default function RHAsistencia() {
       tipo, registros: combinados, ahora: new Date(), modalidad: modalidadActual });
     if (!evaluacion.permitido) throw Error(evaluacion.mensaje);
     // Si el cuarto retardo se registró desde otro dispositivo, no autorizar comida ni salida.
-    if (tipo !== "entrada" && estado.resumen.retardosPrevios >= 3 && marcacionEntrada &&
-        turn?.valido) {
+    if (tipo !== "entrada" &&
+        (cuartoLocalDia || cicloRetardosRH(estado.resumen.retardosPrevios).cuartoEnSiguienteEntrada) &&
+        marcacionEntrada && turn?.valido) {
       const hora = String(marcacionEntrada.registerHour || marcacionEntrada.time || "");
       const momentoEntrada = fechaParaPicker(marcacionEntrada.date);
       const t = /^(\d{1,2}):(\d{2})/.exec(hora);
@@ -1033,7 +1164,7 @@ export default function RHAsistencia() {
         Alert.alert("Registro no disponible", resultado.mensaje || "Revisa la jornada.");
         return;
       }
-      const requiereMotivo = !!(resultado.retardo || resultado.salidaAnticipada);
+      const requiereMotivo = !dialog.fourth && !!(resultado.retardo || resultado.salidaAnticipada);
       if (requiereMotivo && (!comentario.trim() || !["Personal", "Laboral"].includes(motivo))) {
         Alert.alert("Justificacion requerida", "Selecciona motivo y escribe un comentario para guardar el registro offline.");
         return;
@@ -1339,7 +1470,7 @@ export default function RHAsistencia() {
 
   // Una sola vista para online y offline; cambian la fuente y el estado,
   // pero se mantienen las tarjetas, la linea de pasos y los botones originales.
-  // Una vez vencidos los 60 minutos, desaparece P25 y solo queda P20.
+  // Después de las 14:30, desaparece P25 y solo queda P20.
   const veredictoRegreso = inicioComidaVista && !regresoComidaVista ? revisar("comida_fin") : null;
   const comidaCerrada = !!veredictoRegreso?.fueraDeVentanaComida;
   // No presentar el estado provisional de los acuses locales como resultado definitivo
@@ -1348,6 +1479,7 @@ export default function RHAsistencia() {
     (estadoSAP.cargando || perfilLoading || !!employee);
   const jornada = sinConexion === true
     ? (historialOffline.cargando ? "Consultando datos guardados…"
+      : cuartoLocalDia ? "Jornada bloqueada por cuarto retardo (entrada pendiente de SAP)"
       : salidaVista && (pendientesJornadaRH.some(p => p.estado !== "confirmado") || acusesSinHistorial)
       ? "Jornada guardada · esperando SAP"
       : pendientesJornadaRH.some(p => p.estado !== "confirmado") || acusesSinHistorial
@@ -1404,13 +1536,17 @@ export default function RHAsistencia() {
     ? (hayAlgoPendiente ? "Tienes registros guardados. Se enviarán cuando vuelva internet."
       : "Sin conexión. Tus marcaciones se guardarán en el dispositivo.")
     : filaPorRevisar || acuseOnlinePorRevisar || justificacionOnlinePorRevisar
-    ? "Un registro necesita revisión. Sus datos siguen guardados."
+    ? (viajeActivo && !!entradaVista
+      ? "SAP ya tiene la entrada de tu viaje. Hay un comprobante local que requiere conciliación; no vuelvas a registrar entrada."
+      : "Un registro necesita revisión. Sus datos siguen guardados.")
     : hayEnvioEnProceso ? "Hay un envío en proceso."
     : colaPendienteRH ? "Tienes registros pendientes de sincronización."
     : acusesSinHistorial ? "Registro enviado. Esperando confirmación en el historial SAP."
     : "";
   const necesitaGestion = sinConexion === false && hayAlgoPendiente;
-  const etiquetaAccionUnica = filaPorRevisar || acuseOnlinePorRevisar || justificacionOnlinePorRevisar
+  const etiquetaAccionUnica = viajeActivo && !!entradaVista && filaPorRevisar
+    ? "Conciliar entrada de viaje"
+    : filaPorRevisar || acuseOnlinePorRevisar || justificacionOnlinePorRevisar
     ? "Revisar y reintentar"
     : hayEnvioEnProceso || acusesSinHistorial ? "Consultar estado en SAP"
     : colaPendienteRH ? "Sincronizar pendientes"
@@ -1611,7 +1747,7 @@ export default function RHAsistencia() {
           </Text>}
           {pantallaJornadaDisponible && faltaModalidad && <Text style={s.note}>Primero confirma tu modalidad de trabajo.</Text>}
           {comidaCerrada && !salida && <Text style={s.warning}>
-            Pasaron más de 60 minutos desde el inicio de comida. El regreso ya no está disponible; solo puedes registrar salida.
+            Terminó el horario de comida a las 14:30. El regreso ya no está disponible; solo puedes registrar la salida.
           </Text>}
           {pantallaJornadaDisponible && principal && <>
             <Btn title={principal === "entrada" ? "Registrar entrada" :
@@ -1696,7 +1832,6 @@ export default function RHAsistencia() {
               color={recuperarTiempo ? C.green : C.sub} size={23}/>
             <Text style={s.checkboxLabel}>¿Recuperarás el tiempo?</Text>
           </Pressable>
-          <Text style={s.note}>Esta selección se enviará con la justificación a SAP (Istimepay: X si recuperará el tiempo; vacío en caso contrario).</Text>
           <TextInput style={[s.textInput, { minHeight: 70, textAlignVertical: "top" }]}
             value={comentario} onChangeText={setComentario} multiline
             maxLength={500} placeholder="Explica brevemente el motivo (obligatorio)"/>

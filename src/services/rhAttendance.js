@@ -66,7 +66,10 @@ export async function prepararMarcacionRH({ empleado, personalNumber, email, typ
   const instante = new Date();
   const evaluacion = evaluarMarcacionRH({ empleado, tipo: type, registros, ahora: instante, modalidad });
   if (!evaluacion.permitido) throw Error(evaluacion.mensaje);
-  const gps = await gpsParaAsistencia();
+  // Home Office: no solicitar permisos, activar GPS ni capturar coordenadas.
+  // En Presencial y Viaje de negocios se conserva el GPS obligatorio.
+  const esHomeOffice = codigoModalidadRH(modalidad) === "HO";
+  const gps = esHomeOffice ? null : await gpsParaAsistencia();
   const device = await obtenerIdentificadorDispositivoRH();
   const pad = pad2;
   const EnterDate = `${instante.getFullYear()}-${pad(instante.getMonth() + 1)}-${pad(instante.getDate())}`;
@@ -101,29 +104,37 @@ export async function prepararMarcacionRH({ empleado, personalNumber, email, typ
     Chanel: "App",                 // Mantener el nombre OData 'Chanel'.
     Device: device,
     TypeSession: codigoModalidadRH(modalidad),
-    Latitude: coord(gps.latitude),
-    Longitude: coord(gps.longitude),
+    // No incluir Latitude/Longitude en el JSON de Home Office.
+    ...(!esHomeOffice ? { Latitude: coord(gps.latitude), Longitude: coord(gps.longitude) } : {}),
     GeoStatus: "", IsLate: "", Id_log: "", StatusReq: "", Message: "",
     // Viaje de negocios: DateFrom = inicio; DateTo = fin del viaje.
     // Presencial/HomeOffice: ambos campos coinciden con EnterDate.
     DateFrom: esViaje ? fechaInicioViaje : EnterDate,
     DateTo: esViaje ? fechaFinViaje : EnterDate,
   };
-  return { payload, gpsAccuracyMeters: gps.accuracyMeters, evaluacion };
+  return { payload, gpsAccuracyMeters: gps?.accuracyMeters ?? null, evaluacion };
 }
 
 export async function enviarMarcacionRH(payload) {
+  // Protección adicional para marcaciones HO guardadas con una versión antigua:
+  // jamás enviar coordenadas en el POST, tampoco desde la cola offline.
+  // Copiar el objeto: la solicitud original y su hora siguen intactas.
+  const payloadParaEnvio = { ...payload };
+  if (String(payloadParaEnvio.TypeSession || "").trim().toUpperCase() === "HO") {
+    delete payloadParaEnvio.Latitude;
+    delete payloadParaEnvio.Longitude;
+  }
   // Diagnóstico solo para desarrollo. NO imprime encabezados ni tokens.
   // Evita compartir los logs completos sin ocultar nombre, correo, nómina y coordenadas.
   if (__DEV__) {
     console.log("[RRHH][ASISTENCIA][URL]", `${RH_QAS_BASE}${ENDPOINT}`);
-    console.log("[RRHH][ASISTENCIA][JSON ENVIADO]", JSON.stringify(payload, null, 2));
+    console.log("[RRHH][ASISTENCIA][JSON ENVIADO]", JSON.stringify(payloadParaEnvio, null, 2));
   }
 
   let response;
   try {
     // Sin reintentos automáticos para no generar duplicados tras un timeout.
-    response = await api.post(ENDPOINT, payload, {
+    response = await api.post(ENDPOINT, payloadParaEnvio, {
       baseURL: RH_QAS_BASE,
       headers: { "Content-Type": "application/json", Accept: "application/json" }, timeout: 45000,
     });

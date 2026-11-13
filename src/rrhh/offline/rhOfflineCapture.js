@@ -18,6 +18,8 @@ import {
 import { listarMarcacionesPendientesRH } from "./rhPendingDb";
 import { guardarSolicitudRHProtegida, leerSolicitudRHProtegida } from "./rhPendingSecure";
 import { prepararMarcacionRH } from "../../services/rhAttendance";
+import { cicloRetardosRH } from "../../services/rhDelays";
+import { leerRetardosRHCache, leerCuartoRetardoRH, guardarCuartoRetardoRH } from "./rhDelaysCache";
 import { prepararJustificacionRH } from "../../services/rhJustifications";
 import {
   TIPOS_RH,
@@ -174,6 +176,25 @@ export async function validarCapturaOfflineRH({
     jornadasSemana: historial.jornadas,
     fechaJornada,
   });
+  // El servicio ProcessingDelaysSet, no DayStatus RETARDO, determina el ciclo.
+  const [retardos, bloqueoCuarto] = await Promise.all([
+    leerRetardosRHCache({ personalNumber, email, fechaJornada }),
+    leerCuartoRetardoRH({ personalNumber, email, fechaJornada }),
+  ]);
+  if (!retardos?.vigente) {
+    throw Error("RRHH offline: no hay un total mensual vigente de retardos. Conéctate y abre RRHH para prepararlo.");
+  }
+  resumen.retardosPrevios = retardos.totalDelays;
+  resumen.totalAbsencesSAP = retardos.totalAbsences;
+  // Un cuarto retardo previamente aceptado online también bloquea offline.
+  if (registrosLocales.some(r => r.fourthLate === true && r.type === "entrada" &&
+      (r.jornadaDate || r.date) === fechaJornada &&
+      ["accepted", "sending", "uncertain", "offline_pending"].includes(r.sapState))) {
+    throw Error("RRHH offline: ya se registró el cuarto retardo del ciclo. Los demás checks están bloqueados.");
+  }
+  if (bloqueoCuarto) {
+    throw Error("RRHH offline: ya generaste tu cuarto retardo del ciclo. Solo se registró la entrada; los demás movimientos están bloqueados por inasistencia.");
+  }
   if (resumen.inasistenciaSAP || (resumen.homeOfficeHoy && modalidad !== "HomeOffice")) {
     throw Error("RRHH offline: SAP ya registro un estado incompatible para esta jornada. Revisa en linea.");
   }
@@ -193,6 +214,13 @@ export async function validarCapturaOfflineRH({
   const comprobantes = recibosDeEstaPersona(registrosLocales, personalNumber, email);
   const pendientes = await listarMarcacionesPendientesRH({ personalNumber, email });
   const deHoy = pendientes.filter(p => p.fechaJornada === fechaJornada);
+  // Si Android se cerró entre guardar P10 y crear su bloqueo, la cola también protege la jornada.
+  const cuartoEnCola = retardos.totalDelays % 4 === 3 && deHoy.some(p =>
+    p.tipo === "P10" && Number.isFinite(Date.parse(`${p.fechaMarcacion}T${p.horaMarcacion}`)) &&
+    Date.parse(`${p.fechaMarcacion}T${p.horaMarcacion}`) > turno.inicioMs + 10 * 60000);
+  if (cuartoEnCola) {
+    throw Error("RRHH offline: ya registraste el cuarto retardo del ciclo. No puedes continuar la jornada.");
+  }
   if (deHoy.some(p => ESTADOS_POR_REVISAR.has(p.estado))) {
     throw Error("RRHH offline: existe un registro que necesita revision. No se admiten nuevas marcaciones hasta verificarlo con SAP.");
   }
@@ -275,13 +303,12 @@ export async function validarCapturaOfflineRH({
     empleado: perfil, tipo, registros, ahora, modalidad,
   });
   if (!resultado.permitido) throw Error(resultado.mensaje);
-  // Retardo/salida anticipada: se exigira justificante local protegido.
-  // Nunca se confunde una marcacion confirmada con su justificacion pendiente.
-  if (tipo === "entrada" && resumen.retardosPrevios >= 3 &&
-      ahoraMs > turno.inicioMs + 10 * 60 * 1000) {
-    throw Error("RRHH offline: posible cuarto retardo. Contacta a RH o conectate para validar SAP.");
-  }
-  return { perfil, turno, fechaJornada, registros, evaluacion: resultado };
+  // La entrada del 4.º, 8.º, 12.º... se captura, pero sus pasos posteriores no.
+  const cuartoRetardo = tipo === "entrada" && resultado.retardo === true &&
+    cicloRetardosRH(retardos.totalDelays).cuartoEnSiguienteEntrada;
+  // No pedir justificacion de una jornada que se tratará como inasistencia.
+  return { perfil, turno, fechaJornada, registros, evaluacion: resultado,
+    cuartoRetardo, totalDelaysPrevios: retardos.totalDelays };
 }
 
 /**
@@ -314,7 +341,8 @@ export async function capturarMarcacionOfflineRH({
   if (!turnoActual?.valido || turnoActual.fechaJornada !== validacion.fechaJornada) {
     throw Error("RRHH offline: la jornada cambio durante la captura. Revisa nuevamente tu horario.");
   }
-  const exigeJustificacion = !!(validacion.evaluacion.retardo || validacion.evaluacion.salidaAnticipada);
+  const exigeJustificacion = !validacion.cuartoRetardo &&
+    !!(validacion.evaluacion.retardo || validacion.evaluacion.salidaAnticipada);
   let justificacion = null;
   if (exigeJustificacion) {
     if (!justificacionDatos || !String(justificacionDatos.comentario || "").trim()) {
@@ -331,10 +359,18 @@ export async function capturarMarcacionOfflineRH({
     personalNumber, email, fechaJornada: validacion.fechaJornada,
     payload, justificacion,
   });
+  if (validacion.cuartoRetardo) {
+    // Guarda el bloqueo DURABLE de esta jornada incluso si la cola se vacía al sincronizar.
+    await guardarCuartoRetardoRH({ personalNumber, email,
+      fechaJornada: validacion.fechaJornada, totalPrevio: validacion.totalDelaysPrevios });
+  }
   return {
     ...guardada,
     gpsAccuracyMeters,
-    aviso: guardada.yaExistia
+    cuartoRetardo: validacion.cuartoRetardo,
+    aviso: validacion.cuartoRetardo
+      ? "Entrada guardada por cuarto retardo del ciclo. La jornada está bloqueada por inasistencia hasta la conciliación con SAP."
+      : guardada.yaExistia
       ? "Ya existia una marcacion guardada localmente. Revisa pendientes."
       : "Marcacion guardada en el telefono. Pendiente de conciliacion y envio a SAP.",
   };

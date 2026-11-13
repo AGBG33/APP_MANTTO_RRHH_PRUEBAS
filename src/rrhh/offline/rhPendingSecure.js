@@ -2,7 +2,7 @@
 // PASO 6 - Guardado protegido de marcaciones pendientes de RRHH.
 //
 // Esta fase NO consulta SAP, NO envia peticiones y NO cambia la UI.
-// El payload original (incluido GPS) se almacena mediante expo-secure-store,
+// El payload original (con GPS sólo para PR/VN) se almacena mediante expo-secure-store,
 // cifrado por el almacen seguro nativo del dispositivo (Keystore/Keychain).
 // SQLite RRHH guarda la referencia enc:v1:ss:<clave> y metadatos de la marca.
 // NO comparte almacenamiento, outbox, sapQueue ni syncEngine con mantenimiento.
@@ -79,7 +79,12 @@ function validarSolicitud({ personalNumber, email, fechaJornada, payload }) {
       !s(payload.FullName) || !s(payload.Device)) {
     throw Error("RRHH offline: datos obligatorios del comprobante incompletos.");
   }
-  if (!coordValida(payload.Latitude, 90) || !coordValida(payload.Longitude, 180)) {
+  // HO no exige coordenadas porque no se capturan ni se enviarán a SAP.
+  // Los comprobantes HO antiguos con GPS siguen siendo legibles; el emisor
+  // central elimina siempre Latitude y Longitude antes del POST.
+  // PR y VN mantienen la validación original de GPS obligatorio.
+  if (s(payload.TypeSession) !== "HO" &&
+      (!coordValida(payload.Latitude, 90) || !coordValida(payload.Longitude, 180))) {
     throw Error("RRHH offline: coordenadas GPS invalidas.");
   }
   if (!fechaValida(payload.DateFrom) || !fechaValida(payload.DateTo)) {

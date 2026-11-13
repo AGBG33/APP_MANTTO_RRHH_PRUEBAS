@@ -59,17 +59,67 @@ function horaDesdeSAP(value) {
   if (dur) return horaDesdeSAP(`${pad2(dur[1])}:${pad2(dur[2])}:${pad2(dur[3] || 0)}`);
   return "";
 }
+// Cuando SAP entrega una fila por movimiento, puede traer EnterHour incluso
+// antes de rellenar el campo P10Time/P15Time/P25Time/P20Time.
+// Usar EnterHour SOLO si RegisterType corresponde al campo consultado.
+function horaDelMovimientoSAP(item, tipo, campo) {
+  const horaDirecta = horaDesdeSAP(item?.[campo]);
+  if (esHoraRegistrada(horaDirecta)) return horaDirecta;
+  const horaOriginal = str(item?.RegisterType).toUpperCase() === tipo
+    ? horaDesdeSAP(item?.EnterHour) : "";
+  return esHoraRegistrada(horaOriginal) ? horaOriginal : horaDirecta;
+}
+
 export function mapearHistorialRH(item, indice = 0) {
   const date = fechaDesdeSAP(item?.WorkDate) || fechaDesdeSAP(item?.EnterDate);
   const personalNumber = str(item?.PersonalNumber);
   return {
     id: `${personalNumber}-${date}-${indice}`, personalNumber, date,
     dayStatus: str(item?.DayStatus),
-    p10Time: horaDesdeSAP(item?.P10Time),
-    p15Time: horaDesdeSAP(item?.P15Time),
-    p25Time: horaDesdeSAP(item?.P25Time),
-    p20Time: horaDesdeSAP(item?.P20Time),
+    // RelationJob describe la situación laboral (ej. 04 = VIAJE).
+    // DayStatus puede seguir siendo PRESENTE; no usarlo como modalidad.
+    relationJob: str(item?.RelationJob),
+    relationJobDescription: str(item?.RelationJobDescription),
+    typeSession: str(item?.TypeSession),
+    p10Time: horaDelMovimientoSAP(item, "P10", "P10Time"),
+    p15Time: horaDelMovimientoSAP(item, "P15", "P15Time"),
+    p25Time: horaDelMovimientoSAP(item, "P25", "P25Time"),
+    p20Time: horaDelMovimientoSAP(item, "P20", "P20Time"),
   };
+}
+
+// SAP puede devolver VARIAS filas con el mismo WorkDate (una por marcación).
+// No descartar las posteriores: si una fila contiene P10 y otra P20 hay que
+// conservar ambas horas dentro de la jornada, manteniendo nómina y fecha.
+function agruparJornadasDelMismoDia(filas) {
+  const porDia = new Map();
+  for (const fila of filas) {
+    if (!fila?.date) continue;
+    const llave = `${numeroCanonico(fila.personalNumber)}|${fila.date}`;
+    if (!porDia.has(llave)) {
+      porDia.set(llave, { ...fila });
+      continue;
+    }
+    const destino = porDia.get(llave);
+    for (const campo of ["p10Time", "p15Time", "p25Time", "p20Time"]) {
+      if (!esHoraRegistrada(fila[campo])) continue;
+      if (esHoraRegistrada(destino[campo]) && destino[campo] !== fila[campo]) {
+        // Dos horas distintas no deben confirmarse arbitrariamente en pantalla.
+        throw Error("SAP devolvió dos horas diferentes para un mismo tipo de marcación y fecha. Requiere revisión RH.");
+      }
+      destino[campo] = fila[campo];
+    }
+    if (!destino.dayStatus && fila.dayStatus) destino.dayStatus = fila.dayStatus;
+    if (["AUSENTE", "INASISTENCIA", "FALTA"].includes(fila.dayStatus.toUpperCase())) {
+      destino.dayStatus = fila.dayStatus; // Nunca ocultar una ausencia informada por SAP.
+    }
+    if (!destino.relationJob && fila.relationJob) destino.relationJob = fila.relationJob;
+    if (!destino.relationJobDescription && fila.relationJobDescription) {
+      destino.relationJobDescription = fila.relationJobDescription;
+    }
+    if (!destino.typeSession && fila.typeSession) destino.typeSession = fila.typeSession;
+  }
+  return [...porDia.values()];
 }
 
 function eventosDeJornada(jornada, scheduleDetail = "") {
@@ -170,14 +220,29 @@ export async function consultarHistorialRH({ personalNumber, desde, hasta, signa
   const consolidadas = nocturno
     ? consolidarJornadasNocturnasRH(originales, scheduleDetail)
     : originales;
-  const jornadas = [];
-  const fechas = new Set();
-  for (const j of consolidadas) {
-    if (j.date < desde || j.date > hasta || fechas.has(j.date)) continue;
-    fechas.add(j.date);
-    jornadas.push(j);
-  }
+  // En turnos nocturnos, la consolidación ya ordena por jornada pero no
+  // necesariamente conserva los metadatos del estatus laboral de la fila.
+  const vinculadas = nocturno ? consolidadas.map(j => {
+    const referencia = originales.find(f => f.date === j.date && f.relationJob);
+    return { ...j,
+      relationJob: j.relationJob || referencia?.relationJob || "",
+      relationJobDescription: j.relationJobDescription || referencia?.relationJobDescription || "",
+      typeSession: j.typeSession || referencia?.typeSession || "",
+    };
+  }) : consolidadas;
+  const jornadas = agruparJornadasDelMismoDia(vinculadas)
+    .filter(j => j.date >= desde && j.date <= hasta);
   jornadas.sort((a, b) => b.date.localeCompare(a.date));
+  // Datos mínimos para diagnosticar si el GET mensual realmente trae el P10;
+  // no escribir nómina, correo ni contenido completo del historial en logs.
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    console.log("[RRHH][HISTORY][RESUMEN]", {
+      filasSAP: filas.length,
+      filasEmpleado: originales.length,
+      jornadasConsolidadas: jornadas.length,
+      jornadasConP10: jornadas.filter(j => esHoraRegistrada(j.p10Time)).length,
+    });
+  }
   return {
     jornadas, registros: jornadas.flatMap(j => eventosDeJornada(j, scheduleDetail)),
     metodo: dias === 1 ? "dia" : "rango", consultados: filas.length, dias,
