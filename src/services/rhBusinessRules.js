@@ -13,9 +13,6 @@ const fechaLocal = iso => {
   return new Date(y, m - 1, d, 12);
 };
 
-export function esRetardoRH(dayStatus) {
-  return texto(dayStatus) === "RETARDO";
-}
 export function esHomeOfficeRH(dayStatus) {
   // SAP QAS puede devolver HOME OFFICE o la forma truncada HOME OFFIC.
   const estado = texto(dayStatus);
@@ -48,15 +45,11 @@ export function mesLaboralRH(fechaJornada) {
     hasta: fechaISO(new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0, 12)),
   };
 }
+// El conteo de retardos NO se calcula desde AttendanceHistorySet.
+// La app obtiene TotalDelays y TotalAbsences de ProcessingDelaysSet.
+// Este resumen conserva solamente estados diarios y el uso semanal de Home Office.
 export function resumirReglasRH({ jornadasMes = [], jornadasSemana = [], fechaJornada }) {
-  const mes = mesLaboralRH(fechaJornada);
   const semana = semanaLaboralRH(fechaJornada);
-  const retardos = new Set();
-  for (const fila of jornadasMes) {
-    if (fila?.date >= mes.desde && fila.date <= mes.hasta && fila.date !== fechaJornada && esRetardoRH(fila.dayStatus)) {
-      retardos.add(fila.date);
-    }
-  }
   const homeOfficePrevios = new Set();
   for (const fila of jornadasSemana) {
     if (fila?.date >= semana.desde && fila.date <= semana.hasta && fila.date !== fechaJornada && esHomeOfficeRH(fila.dayStatus)) {
@@ -65,7 +58,6 @@ export function resumirReglasRH({ jornadasMes = [], jornadasSemana = [], fechaJo
   }
   const dia = [...jornadasMes, ...jornadasSemana].find(f => f.date === fechaJornada) || null;
   return {
-    retardosPrevios: retardos.size,
     homeOfficeUsadoSemana: homeOfficePrevios.size > 0,
     fechasHomeOffice: [...homeOfficePrevios].sort(),
     jornadaSAP: dia,
