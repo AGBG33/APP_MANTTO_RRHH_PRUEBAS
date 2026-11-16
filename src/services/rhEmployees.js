@@ -40,6 +40,9 @@ export function mapearEmpleadoRH(item) {
     // Los demás códigos SAP se conservan sin interpretar.
     relationJob: str(item, "RelationJob"),
     relationJobDescription: str(item, "RelationJobDescription"),
+    // Horario y tiempo de comida. SAP es la única fuente; sin valor fijo en la app.
+    timeFoodSchedule: str(item, "TimeFoodSchedule"),
+    timeFood: str(item, "TimeFood"),
   };
 }
 

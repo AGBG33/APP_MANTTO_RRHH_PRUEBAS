@@ -18,8 +18,6 @@ const NAMES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", 
 const TOKEN = "(MI|X|L|M|J|V|S|D)";
 const MINUTO = 60 * 1000;
 const HORA = 60 * MINUTO;
-const COMIDA_DESDE_MIN = 12 * 60;
-const COMIDA_HASTA_MIN = 14 * 60 + 30;
 const pad = n => String(n).padStart(2, "0");
 
 export function minutosReloj(date = new Date()) {
@@ -159,6 +157,10 @@ export function clasificarEmpleadoRH(empleado) {
   let razon = "";
   if (relacion.bloqueado) {
     razon = `No puedes registrar asistencia. Estatus laboral: ${relacion.descripcion}.`;
+  } else if (sindicalizado && (relacion.homeOffice || relacion.viaje)) {
+    // SAP asignó un estatus incompatible con las modalidades del grupo Y.
+    // No cambiar de forma artificial a PR para evadir ese estatus especial.
+    razon = `El personal sindicalizado solo registra asistencia presencial (entrada y salida). SAP indica ${relacion.descripcion}; solicita la revisión del estatus a Recursos Humanos.`;
   } else if (!activo) razon = `Empleado no activo: ${empleado?.descriptionStatus || empleado?.status || "sin estatus"}.`;
   else if (!confianza && !sindicalizado) razon = "SAP no devolvió GroupPerson X o Y para este empleado.";
   else if (soloBtp) razon = "Tu asistencia se registra mediante el monitor BTP; puedes consultar aquí tus datos e historial.";
@@ -169,7 +171,9 @@ export function clasificarEmpleadoRH(empleado) {
 export function modalidadesPermitidasRH(empleado) {
   const p = clasificarEmpleadoRH(empleado);
   if (!p.habilitado) return [];
-  // RelationJob 02: se marca únicamente entrada y salida, sin comida.
+  // Grupo Y: exclusivamente Presencial. Nunca ofrece Home Office ni Viaje.
+  if (p.sindicalizado) return ["Presencial"];
+  // Grupo X con RelationJob 02: Home Office con los cuatro movimientos.
   if (p.relacion.homeOffice) return ["HomeOffice"];
   // RelationJob 04: seleccionar período y registrar únicamente P10.
   if (p.relacion.viaje) return ["Viaje de negocios"];
@@ -179,6 +183,55 @@ export function codigoModalidadRH(modalidad) {
   const codigo = CODIGOS_MODALIDAD_RH[modalidad];
   if (!codigo) throw new Error(`Falta confirmar en SAP el código TypeSession para ${modalidad}. No se enviará un código inventado.`);
   return codigo;
+}
+
+/**
+ * Lee el horario de comida de EmployeeSet.
+ * SAP define exclusivamente la ventana autorizada (TimeFoodSchedule).
+ * TimeFood es una duración de REFERENCIA para informar y comparar después,
+ * jamás un máximo para impedir P25 antes o después del tiempo asignado.
+ * Ejemplos: TimeFoodSchedule = "13:00:00 - 14:00:00"
+ *           TimeFood = " 1-hrs / 0-min"
+ * Solo un TimeFoodSchedule ausente o inválido bloquea los checks de comida.
+ * TimeFood vacío/no interpretable NO bloquea P15/P25; P10/P20 se mantienen.
+ */
+export function obtenerHorarioComidaRH(empleado) {
+  const horarioRaw = String(empleado?.timeFoodSchedule ?? "").trim();
+  const tiempoRaw = String(empleado?.timeFood ?? "").trim();
+  const noDisponible = (detalle) => ({ valido: false,
+    mensaje: `No se pudo validar el horario de comida configurado en SAP (${detalle}). Contacta a Recursos Humanos.` });
+
+  if (!horarioRaw) return noDisponible("falta TimeFoodSchedule");
+  const rango = /^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?\s*[-–—]\s*(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/.exec(horarioRaw);
+  if (!rango) return noDisponible("TimeFoodSchedule no tiene formato HH:MM:SS - HH:MM:SS");
+  const inicioHora = Number(rango[1]);
+  const finHora = Number(rango[4]);
+  if (inicioHora > 23 || finHora > 23) return noDisponible("hora fuera de rango");
+  const inicioMin = inicioHora * 60 + Number(rango[2]);
+  const finMin = finHora * 60 + Number(rango[5]);
+  const inicioSeg = inicioMin * 60 + Number(rango[3] || 0);
+  const finSeg = finMin * 60 + Number(rango[6] || 0);
+  // No inferir un turno de comida nocturno sin un contrato explícito de SAP.
+  if (finSeg <= inicioSeg) return noDisponible("el horario final debe ser posterior al inicial");
+
+  // TimeFood es informativo: su ausencia o formato inválido nunca inhabilita
+  // las marcaciones, siempre que TimeFoodSchedule esté validado.
+  const tiempo = /^(\d{1,3})\s*[- ]\s*hrs?\s*\/\s*(\d{1,2})\s*[- ]\s*mins?$/i.exec(tiempoRaw);
+  const horas = tiempo ? Number(tiempo[1]) : null;
+  const minutos = tiempo ? Number(tiempo[2]) : null;
+  const duracionMin = tiempo && minutos <= 59 && horas * 60 + minutos > 0 &&
+    horas * 60 + minutos <= 24 * 60 ? horas * 60 + minutos : null;
+  return {
+    valido: true,
+    inicioSeg, finSeg,
+    duracionMin, // Referencia SAP, NO restricción para registrar regreso de comida.
+    textoInicio: horaCorta(inicioMin),
+    textoFin: horaCorta(finMin),
+    descripcion: `${horaCorta(inicioMin)} a ${horaCorta(finMin)}`,
+    textoDuracion: duracionMin === null ? "No especificado" : horas > 0
+      ? `${horas} h${minutos > 0 ? ` ${minutos} min` : ""}`
+      : `${minutos} min`,
+  };
 }
 
 // Interpretar las fechas locales sin conversión UTC (crucial en jornadas nocturnas).
@@ -215,21 +268,28 @@ function primerRegistro(registros, tipo) {
 
 /**
  * Tolerancias: P10 desde -15 minutos; retardo después de +10 minutos.
- * P15 y P25 disponibles entre las 12:00 y las 14:30, sin límite de duración de comida.
+ * P15 y P25 obedecen únicamente TimeFoodSchedule de EmployeeSet.
+ * TimeFood informa la duración asignada, sin limitar el regreso de comida;
+ * las horas reales P15 y P25 se conservan para conocer el tiempo utilizado.
  */
 export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new Date(), modalidad = "Presencial" }) {
   const p = clasificarEmpleadoRH(empleado);
   if (!p.habilitado) return { permitido: false, mensaje: p.razon };
   if (!TIPOS_RH[tipo]) return { permitido: false, mensaje: "Tipo de registro desconocido." };
-  // No permitir cambiar de modalidad para eludir el estatus del EmployeeSet.
-  if (p.relacion.homeOffice && modalidad !== "HomeOffice") {
-    return { permitido: false, mensaje: "Tu estatus es HOME OFFICE. Registra únicamente entrada y salida en esa modalidad." };
-  }
-  if (p.relacion.viaje && (modalidad !== "Viaje de negocios" || tipo !== "entrada")) {
-    return { permitido: false, mensaje: "Tu estatus es VIAJE DE NEGOCIOS. Selecciona el período y registra únicamente la entrada inicial." };
+  // El personal sindicalizado nunca registra comida ni modalidades HO / VN.
+  // Esta validación aplica tanto online como al motor de captura offline.
+  if (p.sindicalizado && modalidad !== "Presencial") {
+    return { permitido: false, mensaje: "El personal sindicalizado únicamente registra en modalidad Presencial." };
   }
   if (p.sindicalizado && (tipo === "comida_inicio" || tipo === "comida_fin")) {
     return { permitido: false, mensaje: "El personal sindicalizado únicamente registra entrada y salida." };
+  }
+  // No permitir cambiar de modalidad para eludir el estatus del EmployeeSet.
+  if (p.relacion.homeOffice && modalidad !== "HomeOffice") {
+    return { permitido: false, mensaje: "Tu estatus es HOME OFFICE. Registra entrada, inicio y fin de comida y salida en esa modalidad." };
+  }
+  if (p.relacion.viaje && (modalidad !== "Viaje de negocios" || tipo !== "entrada")) {
+    return { permitido: false, mensaje: "Tu estatus es VIAJE DE NEGOCIOS. Selecciona el período y registra únicamente la entrada inicial." };
   }
   if (!modalidad) return { permitido: false, mensaje: "Primero selecciona y guarda la modalidad de trabajo antes de registrar la entrada." };
   if (!modalidadesPermitidasRH(empleado).includes(modalidad)) {
@@ -241,10 +301,8 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
   const codigos = new Set(confirmables.map(r =>
     r.typeSession || (r.modality && CODIGOS_MODALIDAD_RH[r.modality])).filter(Boolean));
   const codigoSeleccionado = CODIGOS_MODALIDAD_RH[modalidad];
-  // Home Office no permite marcaciones de comida. En viaje sólo se hace P10.
-  if (modalidad === "HomeOffice" && (tipo === "comida_inicio" || tipo === "comida_fin")) {
-    return { permitido: false, mensaje: "En Home Office sólo registras entrada y salida." };
-  }
+  // El personal de confianza en Home Office puede realizar P10, P15, P25 y P20.
+  // Viaje de negocios conserva únicamente la entrada P10.
   if (modalidad === "Viaje de negocios" && tipo !== "entrada") {
     return { permitido: false, mensaje: "El viaje de negocios sólo requiere la marcación inicial." };
   }
@@ -255,8 +313,9 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
   catch (e) { return { permitido: false, mensaje: e.message }; }
 
   const momento = ahora.getTime();
-  // Se evalúa por minuto: 14:30:59 sigue permitido; 14:31:00 ya no.
-  const hora = Math.floor(minutosReloj(ahora));
+  // Todas las comparaciones de horario de comida usan el horario local y
+  // los segundos de SAP; no se aplica ningún rango fijo en el código.
+  const horaSeg = ahora.getHours() * 3600 + ahora.getMinutes() * 60 + ahora.getSeconds();
   const entrada = primerRegistro(jornada, "entrada");
   const inicioComida = primerRegistro(jornada, "comida_inicio");
   const regresoComida = primerRegistro(jornada, "comida_fin");
@@ -284,28 +343,42 @@ export function evaluarMarcacionRH({ empleado, tipo, registros = [], ahora = new
   if (!entrada) return { permitido: false, mensaje: "Registra primero la entrada de la jornada." };
   if (salida) return { permitido: false, mensaje: "La jornada ya tiene una salida registrada." };
 
-  if (tipo === "comida_inicio") {
-    if (inicioComida) return { permitido: false, mensaje: "Ya registraste inicio de comida en esta jornada." };
-    // P15 puede registrarse en cualquier minuto de la ventana de comida.
-    if (p.confianza && (hora < COMIDA_DESDE_MIN || hora > COMIDA_HASTA_MIN)) {
-      return { permitido: false, mensaje: "El inicio de comida se permite de 12:00 a 14:30." };
+  if (tipo === "comida_inicio" || tipo === "comida_fin") {
+    // Sindicalizados y viaje ya fueron rechazados arriba. El dato SAP se
+    // valida justo antes del marcaje (incluida la captura offline).
+    const comida = obtenerHorarioComidaRH(empleado);
+    if (!comida.valido) return { permitido: false, mensaje: comida.mensaje };
+
+    if (tipo === "comida_inicio") {
+      if (inicioComida) return { permitido: false,
+        mensaje: "Ya registraste inicio de comida en esta jornada." };
+      if (horaSeg < comida.inicioSeg || horaSeg > comida.finSeg) {
+        return { permitido: false, fueraDeVentanaComida: horaSeg > comida.finSeg,
+          mensaje: `El inicio de comida solo está permitido de ${comida.descripcion}, según SAP.` };
+      }
+      return { permitido: true,
+        aviso: `Inicio de comida dentro del horario SAP (${comida.descripcion}). Tiempo asignado de referencia: ${comida.textoDuracion}.` };
     }
-    return { permitido: true,
-      aviso: "El regreso de comida estará disponible después de este registro y hasta las 14:30." };
-  }
-  if (tipo === "comida_fin") {
-    if (!inicioComida) return { permitido: false, mensaje: "Primero registra el inicio de comida." };
-    if (regresoComida) return { permitido: false, mensaje: "Ya registraste el regreso de comida." };
+
+    if (!inicioComida) return { permitido: false,
+      mensaje: "Primero registra el inicio de comida." };
+    if (regresoComida) return { permitido: false,
+      mensaje: "Ya registraste el regreso de comida." };
     const inicioMs = fechaHoraRegistroRH(inicioComida);
-    if (inicioMs === null) return { permitido: false, mensaje: "No se pudo comprobar la hora de inicio de comida." };
-    if (momento < inicioMs) return { permitido: false, mensaje: "El inicio de comida todavía no ha ocurrido." };
-    // No hay máximo de 60 minutos desde P15. La única fecha/hora límite
-    // es la ventana de comida, con independencia de cuándo se inició P15.
-    if (p.confianza && hora < COMIDA_DESDE_MIN) return { permitido: false,
-      mensaje: "El regreso de comida se habilita a las 12:00." };
-    if (p.confianza && hora > COMIDA_HASTA_MIN) return { permitido: false, fueraDeVentanaComida: true,
-      mensaje: "Terminó la ventana de comida a las 14:30. Solo puedes registrar la salida." };
-    return { permitido: true, aviso: "Regreso de comida dentro del horario permitido de 12:00 a 14:30." };
+    if (inicioMs === null) return { permitido: false,
+      mensaje: "No se pudo comprobar la hora de inicio de comida." };
+    if (momento < inicioMs) return { permitido: false,
+      mensaje: "El inicio de comida todavía no ha ocurrido." };
+    if (horaSeg < comida.inicioSeg) return { permitido: false,
+      mensaje: `El regreso de comida se habilita a las ${comida.textoInicio}, según SAP.` };
+    if (horaSeg > comida.finSeg) return { permitido: false, fueraDeVentanaComida: true,
+      mensaje: `El horario de comida terminó a las ${comida.textoFin}, según SAP. Solo puedes registrar la salida.` };
+    // TimeFood NO es un límite. Se permite regresar antes o después de esa
+    // duración mientras el reloj siga dentro de TimeFoodSchedule.
+    // Preservar P15/P25 con sus horas originales para medir el tiempo real.
+    const duracionRealMin = Math.max(0, Math.floor((momento - inicioMs) / MINUTO));
+    return { permitido: true, duracionRealMin,
+      aviso: `Regreso de comida dentro del horario SAP (${comida.descripcion}). Tiempo transcurrido: ${duracionRealMin} min. Tiempo asignado de referencia: ${comida.textoDuracion}.` };
   }
   if (tipo === "salida") {
     const despues = turno.valido && momento > turno.finMs;

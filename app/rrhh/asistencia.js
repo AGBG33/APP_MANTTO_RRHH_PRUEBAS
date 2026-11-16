@@ -32,7 +32,7 @@ import { esHomeOfficeEmpleadoRH, esViajeRH, semanaLaboralRH, mesLaboralRH,
   resumirReglasRH, movimientosDesdeHistoryRH } from "../../src/services/rhBusinessRules";
 import { clasificarEmpleadoRH, evaluarMarcacionRH, hoyISO, modalidadesPermitidasRH,
   obtenerTurnoDelDia, registrosDeJornadaRH, fechaHoraRegistroRH,
-  horaCorta, codigoModalidadRH, TIPOS_RH } from "../../src/services/rhPolicies";
+  horaCorta, codigoModalidadRH, TIPOS_RH, obtenerHorarioComidaRH } from "../../src/services/rhPolicies";
 
 const C = { bg: "#F5F6F8", white: "#FFFFFF", ink: "#202733", sub: "#647082",
   border: "#E5E8ED", red: "#D71920", pale: "#FFF1F2", green: "#18764C",
@@ -133,6 +133,8 @@ export default function RHAsistencia() {
   const [actualizandoSAP, setActualizandoSAP] = useState(false);
   const [mensajeSync, setMensajeSync] = useState("");
   const busyRef = useRef(false);
+  // Evita dos conciliaciones simultaneas del MISMO comprobante con SAP.
+  const conciliacionComprobanteRef = useRef(new Set());
   const [dialog, setDialog] = useState(null);
   const [motivo, setMotivo] = useState("Laboral");
   const [comentario, setComentario] = useState("");
@@ -291,23 +293,21 @@ export default function RHAsistencia() {
           else sinDatos = true; // No inferir modalidad de una marcación antigua.
         } else if (mode?.modalidad) {
           actual = mode.modalidad;
-        } else if (grupo.sindicalizado && !grupo.relacion?.viaje) {
-          actual = grupo.relacion?.homeOffice ? "HomeOffice" : "Presencial";
+        } else if (grupo.sindicalizado) {
+          actual = "Presencial";
         }
         if (actual && !permitido.includes(actual)) {
           if (previas.length > 0) sinDatos = true; // Registro previo incompatible: requiere revisión.
-          else actual = null; // Selección vieja: permitir elegir la modalidad SAP actual.
+          else actual = grupo.sindicalizado ? "Presencial" : null; // Modalidad vieja: restaurar PR para grupo Y.
         }
-        // Un estatus 02 habilitado sustituye la modalidad vieja PR de un
-        // sindicalizado que todavía no tiene movimientos en esta jornada.
-        if (!actual && grupo.sindicalizado && grupo.relacion?.homeOffice && !sinDatos) {
-          actual = "HomeOffice";
-        }
+        // Los sindicalizados no seleccionan modalidad; su única modalidad es PR.
+        // Si SAP informa HO/VN en grupo Y, rhPolicies bloquea por incompatibilidad.
+        if (!actual && grupo.sindicalizado && !sinDatos) actual = "Presencial";
         setBloqueoModalidadSinDatos(sinDatos);
         setModalidad(actual && permitido.includes(actual) ? actual : (permitido[0] || "Presencial"));
         setModalidadGuardada(!sinDatos && actual && permitido.includes(actual) ? actual : null);
         setViajeDesde(mode?.desde || ""); setViajeHasta(mode?.hasta || "");
-        setExtraOpen(!actual && (grupo.confianza || grupo.relacion?.viaje));
+        setExtraOpen(!actual && grupo.confianza);
       } catch (e) {
         if (activo) {
           const message = String(e?.message || "");
@@ -348,6 +348,7 @@ export default function RHAsistencia() {
   const activos = useMemo(() => records.filter(r => r.demo !== true), [records]);
   const empleadoVigente = estadoSAP.perfil || employee;
   const policy = empleadoVigente ? clasificarEmpleadoRH(empleadoVigente) : null;
+  const comidaSAP = policy?.confianza ? obtenerHorarioComidaRH(empleadoVigente) : null;
   const turno = empleadoVigente ? obtenerTurnoDelDia(empleadoVigente.scheduleDetail, ahora) : null;
   const fechaJornada = turno?.fechaJornada || today;
 
@@ -457,39 +458,48 @@ export default function RHAsistencia() {
     let mesRespuesta = await consultarHistorialRH({ personalNumber: perfil.personalNumber,
       desde: mes.desde, hasta: mes.hasta,
       scheduleDetail: perfil.scheduleDetail });
-    // Protección de viaje: hay servicios SAP que devuelven la jornada actual
-    // en consulta diaria, pero no traen el P10 en el rango mensual.
-    // Solo en RelationJob=04 y si al mes le falta la entrada, consultar el día
-    // exacto y conciliar ANTES de permitir cualquier nuevo registro.
+    // La respuesta de un rango mensual puede estar desactualizada aunque
+    // AttendanceHistorySet ya devuelva P10 en la consulta de UN SOLO DIA.
+    // Consultar siempre la jornada exacta, tambien para HOME OFFICE.
+    // Nunca se envia un segundo POST: ambas consultas son de solo lectura.
     const conHoraSAP = h => /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(String(h || "")) && h !== "00:00:00";
-    const entradaMes = mesRespuesta.jornadas.find(j => j.date === fecha && conHoraSAP(j.p10Time));
-    if (esViajeRH(perfil) && !entradaMes) {
-      const exacta = await consultarHistorialRH({
+    const jornadaMensual = mesRespuesta.jornadas.find(j => j.date === fecha) || null;
+    let jornadaDiaria = null;
+    try {
+      const diaria = await consultarHistorialRH({
         personalNumber: perfil.personalNumber,
         desde: fecha, hasta: fecha, scheduleDetail: perfil.scheduleDetail,
       });
-      const jornadaDia = exacta.jornadas.find(j => j.date === fecha) || null;
-      if (__DEV__) console.log("[RRHH][VIAJE][CONSULTA-DIA]", {
-        huboEntradaMes: false, huboEntradaDia: conHoraSAP(jornadaDia?.p10Time),
+      jornadaDiaria = diaria.jornadas.find(j => j.date === fecha) || null;
+      if (__DEV__) console.log("[RRHH][SAP][CONCILIACION-P10]", {
+        huboEntradaMes: conHoraSAP(jornadaMensual?.p10Time),
+        huboEntradaDia: conHoraSAP(jornadaDiaria?.p10Time),
+        horaEntradaDia: jornadaDiaria?.p10Time || null,
       });
-      if (jornadaDia) {
-        const previa = mesRespuesta.jornadas.find(j => j.date === fecha) || null;
-        const preferirHora = (a, b) => conHoraSAP(a) ? a : b;
-        const consolidada = previa ? {
-          ...previa,
-          p10Time: preferirHora(previa.p10Time, jornadaDia.p10Time),
-          p15Time: preferirHora(previa.p15Time, jornadaDia.p15Time),
-          p25Time: preferirHora(previa.p25Time, jornadaDia.p25Time),
-          p20Time: preferirHora(previa.p20Time, jornadaDia.p20Time),
-          dayStatus: previa.dayStatus || jornadaDia.dayStatus,
-          relationJob: previa.relationJob || jornadaDia.relationJob,
-          relationJobDescription: previa.relationJobDescription || jornadaDia.relationJobDescription,
-          typeSession: previa.typeSession || jornadaDia.typeSession,
-        } : jornadaDia;
-        mesRespuesta = { ...mesRespuesta, jornadas: [
-          ...mesRespuesta.jornadas.filter(j => j.date !== fecha), consolidada,
-        ].sort((a, b) => b.date.localeCompare(a.date)) };
-      }
+    } catch (errorDiario) {
+      // Si el mes ya tiene las horas, no ocultarlas por un fallo del GET diario.
+      // Si el mes NO trae P10, la pantalla no inventara una confirmacion.
+      if (__DEV__) console.warn("[RRHH][SAP][CONCILIACION-P10] Error GET diario:",
+        errorDiario?.message || errorDiario);
+    }
+    if (jornadaDiaria) {
+      // La consulta diaria es la fuente mas reciente para los checks de HO/PR/VN.
+      // Un cero en SAP NO sustituye a una hora correcta de la respuesta mensual.
+      const horaActual = (diaria, mes) => conHoraSAP(diaria) ? diaria : mes;
+      const consolidada = jornadaMensual ? {
+        ...jornadaMensual,
+        p10Time: horaActual(jornadaDiaria.p10Time, jornadaMensual.p10Time),
+        p15Time: horaActual(jornadaDiaria.p15Time, jornadaMensual.p15Time),
+        p25Time: horaActual(jornadaDiaria.p25Time, jornadaMensual.p25Time),
+        p20Time: horaActual(jornadaDiaria.p20Time, jornadaMensual.p20Time),
+        dayStatus: jornadaDiaria.dayStatus || jornadaMensual.dayStatus,
+        relationJob: jornadaDiaria.relationJob || jornadaMensual.relationJob,
+        relationJobDescription: jornadaDiaria.relationJobDescription || jornadaMensual.relationJobDescription,
+        typeSession: jornadaDiaria.typeSession || jornadaMensual.typeSession,
+      } : jornadaDiaria;
+      mesRespuesta = { ...mesRespuesta, jornadas: [
+        ...mesRespuesta.jornadas.filter(j => j.date !== fecha), consolidada,
+      ].sort((a, b) => b.date.localeCompare(a.date)) };
     }
     // El cache offline se actualiza con ESTA misma respuesta SAP (tambien si
     // SAP devuelve la jornada sin salida). Antes solo se actualizaba la pantalla.
@@ -597,6 +607,44 @@ export default function RHAsistencia() {
         : mov);
   }, [jornadaRemota, turno?.inicioMs, turno?.finMs, fechaJornada,
     estadoSAP.perfil?.relationJob]);
+  // Si la entrada (u otro check) YA aparece en AttendanceHistorySet con
+  // EXACTAMENTE la misma fecha, tipo y hora del comprobante local, confirmar
+  // el acuse pendiente SIN reenviar el registro a SAP.
+  // Las horas diferentes permanecen para revision de RH; nunca se borran.
+  useEffect(() => {
+    if (!sapListo || sinConexion !== false || cargandoColaRH || errorColaRH ||
+        !personalNumber || !mailOK(correo) || movimientosRemotos.length === 0) return;
+    const candidatos = pendientesOffline.filter(f =>
+      !["confirmado", "enviando"].includes(f.estado) &&
+      movimientosRemotos.some(m =>
+        m.registerType === f.tipo && m.jornadaDate === f.fechaJornada &&
+        String(m.registerHour || "") === String(f.horaMarcacion || "")));
+    if (!candidatos.length) return;
+    const confirmarSinReenviar = async () => {
+      let huboCambio = false;
+      for (const fila of candidatos) {
+        const clave = `${identidadColaRH}|${fila.id}`;
+        if (conciliacionComprobanteRef.current.has(clave)) continue;
+        conciliacionComprobanteRef.current.add(clave);
+        try {
+          const verificado = await verificarMarcacionGuardadaRH({
+            personalNumber: numeroRegistro, email: correo, id: fila.id,
+            ensureValidToken,
+          });
+          if (verificado.resultado === "encontrado") huboCambio = true;
+        } catch (e) {
+          if (__DEV__) console.warn("[RRHH][SAP][CONCILIACION-LOCAL]", e?.message || e);
+        } finally {
+          conciliacionComprobanteRef.current.delete(clave);
+        }
+      }
+      if (huboCambio) setRevisionColaRH(n => n + 1);
+    };
+    confirmarSinReenviar();
+  }, [sapListo, sinConexion, cargandoColaRH, errorColaRH,
+    personalNumber, numeroRegistro, correo, movimientosRemotos, pendientesOffline,
+    ensureValidToken]);
+
   // Tanto online como offline, los pasos VERDES vienen EXCLUSIVAMENTE
   // de AttendanceHistorySet (respuesta actual SAP o su ultima copia SQLite).
   // Los acuses historicos de AsyncStorage y la cola se conservan para auditoria,
@@ -659,12 +707,13 @@ export default function RHAsistencia() {
   const regresoComida = ultimo(aceptados, "comida_fin");
   const salida = ultimo(aceptados, "salida");
   const hayRegistroSAP = !!movimientosRemotos.length;
-  const hoyEnHomeOffice = !!(sapListo && (estadoSAP.resumen?.homeOfficeHoy ||
-    esHomeOfficeEmpleadoRH(estadoSAP.perfil)));
-  const viajeActivo = !!(sapListo && (esViajeRH(estadoSAP.perfil) ||
+  // HO y VN son modalidades del personal de confianza, nunca del grupo Y.
+  const hoyEnHomeOffice = !!(sapListo && policy?.confianza &&
+    (estadoSAP.resumen?.homeOfficeHoy || esHomeOfficeEmpleadoRH(estadoSAP.perfil)));
+  const viajeActivo = !!(sapListo && policy?.confianza && (esViajeRH(estadoSAP.perfil) ||
     esViajeRH(jornadaRemota) || jornadaRemota?.typeSession === "VN"));
-  const viajeYaEnviado = aceptados.some(r => r.type === "entrada" &&
-    (r.typeSession === "VN" || r.modality === "Viaje de negocios"));
+  const viajeYaEnviado = !!(policy?.confianza && aceptados.some(r => r.type === "entrada" &&
+    (r.typeSession === "VN" || r.modality === "Viaje de negocios")));
   const previoTardanzas = sapListo ? estadoSAP.resumen?.retardosPrevios ?? 0 :
     (retardosDeEstaJornada && retardosOffline.vigente ? retardosOffline.totalDelays : 0);
   const plazoRetardo = turno?.valido ? turno.inicioMs + 10 * 60000 : Infinity;
@@ -700,14 +749,13 @@ export default function RHAsistencia() {
     (modalidadConfirmadaLocal || (hayRegistroSAP ? "Presencial" : null));
   // El cuarto retardo se procesa como una entrada presencial simple, sin selección
   // de modalidad ni solicitud de justificación en la app.
-  const modalidadEfectiva = esCuartoAhora ? "Presencial" :
+  const modalidadEfectiva = esCuartoAhora || policy?.sindicalizado ? "Presencial" :
     (hoyEnHomeOffice ? "HomeOffice" :
-      (policy?.sindicalizado && policy?.relacion?.homeOffice ? "HomeOffice" :
-        (entrada ? (modalidadRegistrada || modalidadGuardada) : modalidadGuardada)));
+      (entrada ? (modalidadRegistrada || modalidadGuardada) : modalidadGuardada));
   const huboEnvioHoy = deHoy.some(r => ["accepted", "sending", "uncertain", "rejected", "offline_pending"].includes(r.sapState) && !!TIPOS_RH[r.type]);
   const modoBloqueado = huboEnvioHoy || busy || esCuartoAhora || bloqueadaJornadaSAP || hoyEnHomeOffice || bloquearPorColaRH;
   const pantallaJornadaDisponible = sapListo || sinConexion === true;
-  const requiereElegirModalidad = !!(policy?.confianza || policy?.relacion?.viaje);
+  const requiereElegirModalidad = !!policy?.confianza;
   const modalidadLista = sinConexion === true
     ? !!((policy?.sindicalizado && !requiereElegirModalidad) ||
         (modalidadGuardada && modalidades.includes(modalidadGuardada))) &&
@@ -805,8 +853,8 @@ export default function RHAsistencia() {
       r.justificationState !== "accepted" &&
       (!sapListo || movimientosRemotos.some(sap => sap.type === r.type)));
 
-  // Confirmacion LOCAL y explicita de la modalidad Presencial para personal
-  // de confianza. El motor offline aun no admite HO ni viajes de negocios.
+  // Confirmacion local de la modalidad; el motor offline admite PR, HO y VN
+  // y valida la secuencia de los cuatro checks de Home Office por rhPolicies.
   // Opcion manual complementaria al agente automatico: siempre verifica SAP primero.
   const sincronizarColaAhora = async () => {
     if (sinConexion !== false || busyRef.current || cargandoColaRH || !!errorColaRH) return;
@@ -1470,9 +1518,17 @@ export default function RHAsistencia() {
 
   // Una sola vista para online y offline; cambian la fuente y el estado,
   // pero se mantienen las tarjetas, la linea de pasos y los botones originales.
-  // Después de las 14:30, desaparece P25 y solo queda P20.
+  // P25 se deshabilita únicamente al terminar la ventana SAP.
+  // TimeFood es informativo, jamás un límite para regresar de comida.
+  // P20 sigue permitido conforme a la política de salida.
   const veredictoRegreso = inicioComidaVista && !regresoComidaVista ? revisar("comida_fin") : null;
   const comidaCerrada = !!veredictoRegreso?.fueraDeVentanaComida;
+  // Comparación informativa: SAP conserva las horas reales de P15 y P25.
+  // No se utiliza para habilitar/deshabilitar ningún movimiento.
+  const inicioComidaMs = inicioComidaVista ? fechaHoraRegistroRH(inicioComidaVista) : null;
+  const finComidaMs = regresoComidaVista ? fechaHoraRegistroRH(regresoComidaVista) : null;
+  const minutosComidaReal = inicioComidaMs !== null && finComidaMs !== null && finComidaMs >= inicioComidaMs
+    ? Math.floor((finComidaMs - inicioComidaMs) / 60000) : null;
   // No presentar el estado provisional de los acuses locales como resultado definitivo
   // mientras aún falta validar EmployeeSet + AttendanceHistorySet en SAP.
   const verificandoSAP = sinConexion !== true && !sapListo && !estadoSAP.error &&
@@ -1495,8 +1551,9 @@ export default function RHAsistencia() {
     : salidaVista ? "Jornada finalizada" : pendientesReales.length || acusesSinHistorial ? "Registro por conciliar"
     : !entradaVista ? "Aún no has registrado tu entrada"
     : inicioComidaVista && !regresoComidaVista && !comidaCerrada ? "En horario de comida" : "Jornada en curso";
-  const soloDosRegistros = policy?.sindicalizado || modalidadEfectiva === "HomeOffice" || hoyEnHomeOffice;
-  const esViajeModalidad = modalidadEfectiva === "Viaje de negocios";
+  // Grupo Y: siempre dos checks (P10/P20). Grupo X: cuatro también en HO.
+  const soloDosRegistros = !!policy?.sindicalizado;
+  const esViajeModalidad = !!policy?.confianza && modalidadEfectiva === "Viaje de negocios";
   const pasosVisibles = (viajeActivo || viajeYaEnviado || esViajeModalidad) ? ["entrada"] :
     soloDosRegistros ? ["entrada", "salida"] : ORDEN;
   const botones = bloqueadaJornadaSAP ? [] : !entradaVista ? ["entrada"] : (salidaVista || esViajeModalidad) ? []
@@ -1547,7 +1604,7 @@ export default function RHAsistencia() {
   const etiquetaAccionUnica = viajeActivo && !!entradaVista && filaPorRevisar
     ? "Conciliar entrada de viaje"
     : filaPorRevisar || acuseOnlinePorRevisar || justificacionOnlinePorRevisar
-    ? "Revisar y reintentar"
+    ? "Verificar registro en SAP"
     : hayEnvioEnProceso || acusesSinHistorial ? "Consultar estado en SAP"
     : colaPendienteRH ? "Sincronizar pendientes"
     : "Actualizar estado desde SAP";
@@ -1643,8 +1700,8 @@ export default function RHAsistencia() {
                   registro.estadoOffline === "confirmado" ? "Por conciliar" : "Por revisar"}</Text>}
             </View>;
           })}</View>}
-          {pantallaJornadaDisponible && policy?.sindicalizado && !policy?.relacion?.viaje &&
-            <Text style={s.turnoLine}>Modalidad: {policy?.relacion?.homeOffice ? "Home Office" : "Presencial"}</Text>}
+          {pantallaJornadaDisponible && policy?.sindicalizado &&
+            <Text style={s.turnoLine}>Modalidad: Presencial</Text>}
           {pantallaJornadaDisponible && turno?.valido && <Text style={s.turnoLine}>
             <Ionicons name="time-outline" size={15} color={C.sub}/>  Horario de hoy: {turno.textoInicio}–{turno.textoFin}
           </Text>}
@@ -1746,8 +1803,24 @@ export default function RHAsistencia() {
             {policy?.razon || "Tu asistencia no está habilitada desde la aplicación."}
           </Text>}
           {pantallaJornadaDisponible && faltaModalidad && <Text style={s.note}>Primero confirma tu modalidad de trabajo.</Text>}
+          {/* Mostrar el horario de comida únicamente después de registrar la entrada
+              (confirmada por SAP o guardada localmente en modo offline). */}
+          {pantallaJornadaDisponible && !!entradaVista && policy?.confianza &&
+            !viajeActivo && modalidadEfectiva !== "Viaje de negocios" &&
+            comidaSAP?.valido && <Text style={s.note}>
+              Horario de comida: {comidaSAP.textoInicio}–{comidaSAP.textoFin} · Tiempo asignado: {comidaSAP.textoDuracion}
+            </Text>}
+          {pantallaJornadaDisponible && !!entradaVista && policy?.confianza &&
+            !viajeActivo && modalidadEfectiva !== "Viaje de negocios" &&
+            comidaSAP && !comidaSAP.valido && <Text style={s.warning}>
+              Horario de comida no disponible. Consulta con Recursos Humanos.
+            </Text>}
+          {pantallaJornadaDisponible && !!entradaVista && minutosComidaReal !== null &&
+            policy?.confianza && <Text style={s.note}>
+              Comida registrada: {minutosComidaReal} min
+            </Text>}
           {comidaCerrada && !salida && <Text style={s.warning}>
-            Terminó el horario de comida a las 14:30. El regreso ya no está disponible; solo puedes registrar la salida.
+            {veredictoRegreso?.mensaje || "El regreso de comida ya no está disponible. Solo puedes registrar la salida."}
           </Text>}
           {pantallaJornadaDisponible && principal && <>
             <Btn title={principal === "entrada" ? "Registrar entrada" :

@@ -138,7 +138,11 @@ export async function validarCapturaOfflineRH({
   if (s(perfil.scheduleDetail) !== s(empleado.scheduleDetail) ||
       s(perfil.groupPerson) !== s(empleado.groupPerson) ||
       s(perfil.authorisedRegister) !== s(empleado.authorisedRegister) ||
-      s(perfil.relationJob) !== s(empleado.relationJob)) {
+      s(perfil.relationJob) !== s(empleado.relationJob) ||
+      // La copia offline debe contener exactamente el horario y la duracion
+      // de comida que SAP confirmo para la identidad de este empleado.
+      s(perfil.timeFoodSchedule) !== s(empleado.timeFoodSchedule) ||
+      s(perfil.timeFood) !== s(empleado.timeFood)) {
     throw Error("RRHH offline: el perfil en pantalla no coincide con los datos guardados de SAP.");
   }
   const politica = clasificarEmpleadoRH(perfil);

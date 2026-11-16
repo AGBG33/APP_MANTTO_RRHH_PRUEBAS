@@ -48,6 +48,8 @@ const PERFIL_PERMITIDO = [
   "registerType", "authorisedRegister", "centerCode", "scheduleCode",
   "scheduleDetail", "role", "groupPerson", "groupPersonDescription",
   "relationJob", "relationJobDescription", "numeroConfirmadoEnSAP",
+  // Conservar los valores originales de comida provenientes de EmployeeSet.
+  "timeFoodSchedule", "timeFood",
 ];
 
 const JORNADA_PERMITIDA = [
