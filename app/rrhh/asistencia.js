@@ -419,14 +419,12 @@ export default function RHAsistencia() {
   }, [personalNumber, correo, fechaJornada, revisionColaRH, sinConexion]);
   const retardosDeEstaJornada = retardosOffline.identidad === `${personalNumber}|${correo.toLowerCase()}` &&
     retardosOffline.fechaJornada === fechaJornada;
-  // Fallback: si Android se cerró entre guardar P10 y crear el bloqueo local,
-  // la propia cola protegida también prueba que ya existe la entrada del 4.º.
-  const cuartoEnCola = retardosDeEstaJornada && retardosOffline.vigente &&
-    retardosOffline.totalDelays % 4 === 3 && !!turno?.valido &&
-    pendientesOffline.some(f => f.fechaJornada === fechaJornada && f.tipo === "P10" &&
-      Number.isFinite(Date.parse(`${f.fechaMarcacion}T${f.horaMarcacion}`)) &&
-      Date.parse(`${f.fechaMarcacion}T${f.horaMarcacion}`) > turno.inicioMs + 10 * 60000);
-  const cuartoLocalDia = retardosDeEstaJornada && (retardosOffline.cuartoLocal || cuartoEnCola);
+  // El contador mensual puede incluir un P10 recién capturado. No deducir
+  // un cuarto retardo por "totalDelays % 4 === 3" + P10 pendiente: ese P10
+  // podría ser precisamente el TERCERO y ocasionar un bloqueo incorrecto.
+  // Para entradas offline se usa exclusivamente el bloqueo durable guardado
+  // con el conteo PREVIO a esa entrada (rh_cuarto_retardo_jornada).
+  const cuartoLocalDia = retardosDeEstaJornada && retardosOffline.cuartoLocal;
 
   // Historial mensual: jornada, estatus y cuota de Home Office.
   // El conteo de retardos proviene EXCLUSIVAMENTE de ProcessingDelaysSet.
@@ -721,22 +719,25 @@ export default function RHAsistencia() {
     cicloRetardosRH(previoTardanzas).cuartoEnSiguienteEntrada;
   const esCuartoAhora = (sapListo || (sinConexion === true && retardosDeEstaJornada && retardosOffline.vigente)) &&
     !entrada && siguienteEsCuarto && ahora.getTime() > plazoRetardo;
-  const entradaFueCuarto = cuartoLocalDia || (!!entrada && (deHoy.some(r => r.type === "entrada" && r.fourthLate) ||
-    (siguienteEsCuarto && (() => {
-      const fecha = entrada?.date;
-      const hora = entrada?.registerHour || entrada?.time;
-      if (!fecha || !hora) return false;
-      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha);
-      if (!m) return false;
-      const h = /^([01]\d|2[0-3]):([0-5]\d)/.exec(hora);
-      if (!h) return false;
-      const instante = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(h[1]), Number(h[2]));
-      return instante.getTime() > plazoRetardo;
-    })())));
-  // Una petición de cuarto retardo incierta también bloquea continuación hasta
-  // que SAP/RH determine su resultado: nunca asumir que un timeout = no guardado.
-  const cuartoPendienteConfirmar = deHoy.some(r => r.type === "entrada" && r.fourthLate &&
-    ["accepted", "sending", "uncertain", "rejected"].includes(r.sapState));
+  // La decisión "este P10 es el 4.º" se toma ANTES del POST usando el
+  // TotalDelays previo de ProcessingDelaysSet y queda en fourthLate.
+  // Un comprobante "accepted" se excluye del timeline para que las horas
+  // verdes procedan de SAP, pero conserva el indicador en records/activos.
+  // Consultarlo aquí evita perder el bloqueo después del POST o al reabrir.
+  const comprobanteCuartoHoy = activos.find(r =>
+    r.type === "entrada" && r.fourthLate === true &&
+    norm(r.personalNumber) === personalNumber &&
+    String(r.email || "").trim().toLowerCase() === correo.toLowerCase() &&
+    ["accepted", "sending", "uncertain", "rejected"].includes(r.sapState) &&
+    registrosDeJornadaRH([r], turno, ahora).length > 0);
+  // No deducir retrospectivamente el 4.º de un TotalDelays que ya incorporó
+  // el P10 actual: TotalDelays=3 podría ser el TERCER retardo, no el cuarto.
+  // Un P10 de otro dispositivo solo se bloquea como inasistencia cuando SAP
+  // lo informa mediante DayStatus, no por una suposición del contador.
+  const entradaFueCuarto = cuartoLocalDia || !!comprobanteCuartoHoy;
+  // Si la petición quedó incierta, impedir nuevas marcaciones hasta conciliar.
+  const cuartoPendienteConfirmar = !!comprobanteCuartoHoy &&
+    ["sending", "uncertain", "rejected"].includes(comprobanteCuartoHoy.sapState);
   // El estatus 04 permite la PRIMERA entrada de viaje, pero no más movimientos.
   // Antes se bloqueaba por el simple hecho de tener RelationJob=04.
   const bloqueadaJornadaSAP = cuartoLocalDia || (sapListo && (estadoSAP.resumen?.inasistenciaSAP ||
@@ -1187,19 +1188,12 @@ export default function RHAsistencia() {
     const evaluacion = evaluarMarcacionRH({ empleado: estado.perfil,
       tipo, registros: combinados, ahora: new Date(), modalidad: modalidadActual });
     if (!evaluacion.permitido) throw Error(evaluacion.mensaje);
-    // Si el cuarto retardo se registró desde otro dispositivo, no autorizar comida ni salida.
-    if (tipo !== "entrada" &&
-        (cuartoLocalDia || cicloRetardosRH(estado.resumen.retardosPrevios).cuartoEnSiguienteEntrada) &&
-        marcacionEntrada && turn?.valido) {
-      const hora = String(marcacionEntrada.registerHour || marcacionEntrada.time || "");
-      const momentoEntrada = fechaParaPicker(marcacionEntrada.date);
-      const t = /^(\d{1,2}):(\d{2})/.exec(hora);
-      if (t) {
-        momentoEntrada.setHours(Number(t[1]), Number(t[2]), 0, 0);
-        if (momentoEntrada.getTime() > turn.inicioMs + 10 * 60000) {
-          throw Error("Se registró el cuarto retardo. No puedes continuar la jornada; Recursos Humanos debe verificar la inasistencia en SAP.");
-        }
-      }
+    // Bloquear después de un cuarto P10 identificado ANTES de enviarlo,
+    // o cuando SAP ya clasificó la jornada como inasistencia (validado arriba).
+    // No usar el total mensual actualizado: un tercer P10 tardío puede hacer
+    // que ProcessingDelaysSet pase de 2 a 3 sin ser el cuarto.
+    if (tipo !== "entrada" && entradaFueCuarto) {
+      throw Error("Se registró el cuarto retardo. No puedes continuar la jornada; Recursos Humanos debe verificar la inasistencia en SAP.");
     }
     return { estado, combinados, modalidadActual, cuarto, evaluacion };
   };

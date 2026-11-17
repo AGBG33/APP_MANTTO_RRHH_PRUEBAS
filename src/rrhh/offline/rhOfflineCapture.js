@@ -218,13 +218,11 @@ export async function validarCapturaOfflineRH({
   const comprobantes = recibosDeEstaPersona(registrosLocales, personalNumber, email);
   const pendientes = await listarMarcacionesPendientesRH({ personalNumber, email });
   const deHoy = pendientes.filter(p => p.fechaJornada === fechaJornada);
-  // Si Android se cerró entre guardar P10 y crear su bloqueo, la cola también protege la jornada.
-  const cuartoEnCola = retardos.totalDelays % 4 === 3 && deHoy.some(p =>
-    p.tipo === "P10" && Number.isFinite(Date.parse(`${p.fechaMarcacion}T${p.horaMarcacion}`)) &&
-    Date.parse(`${p.fechaMarcacion}T${p.horaMarcacion}`) > turno.inicioMs + 10 * 60000);
-  if (cuartoEnCola) {
-    throw Error("RRHH offline: ya registraste el cuarto retardo del ciclo. No puedes continuar la jornada.");
-  }
+  // El cuarto retardo offline solo se bloquea cuando fue identificado con
+  // TotalDelays ANTERIOR al P10 y quedó guardado con guardarCuartoRetardoRH,
+  // o cuando el acuse fourthLate de esta jornada lo acredita (arriba).
+  // No contar un P10 pendiente usando el total mensual ACTUAL: podría ser
+  // el 3.er retardo recién incorporado al contador de ProcessingDelaysSet.
   if (deHoy.some(p => ESTADOS_POR_REVISAR.has(p.estado))) {
     throw Error("RRHH offline: existe un registro que necesita revision. No se admiten nuevas marcaciones hasta verificarlo con SAP.");
   }

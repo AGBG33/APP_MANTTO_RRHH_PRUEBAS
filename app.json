@@ -3,7 +3,7 @@
     "name": "Melmex App QAS",
     "slug": "mitsu_frontend",
     "scheme": "mitsuapp",
-    "version": "beta 4.1",
+    "version": "beta 5",
     "orientation": "portrait",
     "icon": "./assets/icon_mitsu_qas.png",
     "userInterfaceStyle": "light",
@@ -35,7 +35,8 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "blockedPermissions": [
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
@@ -54,7 +55,8 @@
       "expo-location",
       "expo-splash-screen",
       "./plugins/withBtpG5Trust",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-notifications"
     ],
     "extra": {
       "AZURE_TENANT_ID": "12326ef5-6c3e-48e8-a6ff-2661c6efcfb1",
