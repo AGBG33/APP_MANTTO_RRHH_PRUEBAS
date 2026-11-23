@@ -1,6 +1,6 @@
 // Se habilita Mantenimiento por SAP Position; nunca por azure_roles.
 import { useMemo } from "react";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../auth";
 import { useSapEmployee } from "../../context/SapEmployeeContext";
 import { resolveAccess } from "./resolveAccess";
 import { getUserPermissions, getMantenimientoRoute } from "./rolePermissions";
