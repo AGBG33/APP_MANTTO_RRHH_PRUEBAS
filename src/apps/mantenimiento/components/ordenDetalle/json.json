@@ -1,0 +1,2679 @@
+{
+  "d": {
+    "results": [
+      {
+        "Mandt": "400",
+        "Id": "0000000001",
+        "Material": "005-2000157",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "GRASAS",
+        "Descripcion": "GRASA MULTIS MEP 2 ELF  LITREXA 6012",
+        "Unidad": "KG"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000002",
+        "Material": "005-2000174",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "GRASAS",
+        "Descripcion": "DESENGRASANTE OLYMPIA",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000003",
+        "Material": "005-2000176",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "GRASAS",
+        "Descripcion": "BIODIEL OLIMPIA DESENGRASANTE PARA EQ.",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000004",
+        "Material": "005-2000178",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "GRASAS",
+        "Descripcion": "GRASA MOLYKOTEG-N PLUS/G-N PASTE",
+        "Unidad": "KG"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000005",
+        "Material": "005-3000287",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "GRASAS",
+        "Descripcion": "GRASA NO.16",
+        "Unidad": "KG"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000006",
+        "Material": "005-2000294",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "GRASAS",
+        "Descripcion": "GRASA P/MOTOR DE TRACCION UNIMAX R No.2",
+        "Unidad": "KG"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000007",
+        "Material": "005-3000286",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "GRASAS",
+        "Descripcion": "GRASA UNIMAX NO.25",
+        "Unidad": "KG"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000008",
+        "Material": "005-2000179",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "GRASAS",
+        "Descripcion": "LIMPIADOR DESENGRASANTE PYK SOL",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000009",
+        "Material": "005-2000156",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "GRASAS",
+        "Descripcion": "GRASA LUBDECO MOLYLUB 260-B",
+        "Unidad": "KG"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000010",
+        "Material": "005-2000182",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "GRASAS",
+        "Descripcion": "PYK-DESOXI. DESENGRASANTE Y DESOXIDANTE",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000011",
+        "Material": "005-2000174",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "DIELECTRIC",
+        "Descripcion": "DESENGRASANTE OLYMPIA",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000012",
+        "Material": "005-2000176",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "DIELECTRIC",
+        "Descripcion": "BIODIEL OLIMPIA DESENGRASANTE PARA EQ.",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000013",
+        "Material": "005-2000179",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "DIELECTRIC",
+        "Descripcion": "LIMPIADOR DESENGRASANTE PYK SOL",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000014",
+        "Material": "005-2000182",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "DIELECTRIC",
+        "Descripcion": "PYK-DESOXI. DESENGRASANTE Y DESOXIDANTE",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000015",
+        "Material": "005-2000158",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "ACEITE",
+        "Descripcion": "ACEITE HIDRAULICO ISO68 ELF AZOLLA ZS 68",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000016",
+        "Material": "005-2000160",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "ACEITE",
+        "Descripcion": "ACEITE DTH 220 SUST CIRKAN ZS-220",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000017",
+        "Material": "005-2000169",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "ACEITE",
+        "Descripcion": "ACEITE CAJA DE ENGRANES REDUCTELF 320",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000018",
+        "Material": "005-2000171",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "ACEITE",
+        "Descripcion": "ACEITE HIDRAULICO ISO 32 AZOLLA ZS 32",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000019",
+        "Material": "005-2000164",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "ACEITE",
+        "Descripcion": "ACEITE 3 EN 1",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000020",
+        "Material": "020-2000333",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TRAPO",
+        "Descripcion": "TRAPO LIMPIO 100% ALGODÓN",
+        "Unidad": "KG"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000021",
+        "Material": "020-2000023",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PAPEL_LIJA",
+        "Descripcion": "LIJA DE AGUAGRADO 100 C-99",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000022",
+        "Material": "020-2000024",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PAPEL_LIJA",
+        "Descripcion": "LIJA DE AGUAGRADO 150 C-99",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000023",
+        "Material": "020-2000025",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PAPEL_LIJA",
+        "Descripcion": "LIJA DE AGUAGRADO 240 A99",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000024",
+        "Material": "020-2000026",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PAPEL_LIJA",
+        "Descripcion": "LIJA DE AGUAGRADO 280 A-99",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000025",
+        "Material": "020-2000027",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PAPEL_LIJA",
+        "Descripcion": "LIJA DE AGUAGRADO 320 A-99",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000026",
+        "Material": "020-2000028",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PAPEL_LIJA",
+        "Descripcion": "LIJA DE AGUAGRADO 400 A-99",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000027",
+        "Material": "020-2000029",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PAPEL_LIJA",
+        "Descripcion": "LIJA DE AGUAGRADO 600 A-99",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000028",
+        "Material": "020-2000030",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PAPEL_LIJA",
+        "Descripcion": "LIJA DE ESMERIL FINO J-86 120",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000029",
+        "Material": "020-2000031",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PAPEL_LIJA",
+        "Descripcion": "LIJA DE ESMERIL MEDIANO J-73 MED-80",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000030",
+        "Material": "020-2000032",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PAPEL_LIJA",
+        "Descripcion": "LIJA DE ESMERILGRUESO J-73GSO-50",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000031",
+        "Material": "020-2000478",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PAPEL_LIJA",
+        "Descripcion": "LIJA DE AGUA GRADO 1000",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000032",
+        "Material": "020-2000045",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO 3/16X3/4 MY213D044-04",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000033",
+        "Material": "020-2000049",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO DE SEG. 3/16 X 1 MY213D044-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000034",
+        "Material": "020-2000059",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO 3/16 X 2 1/2",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000035",
+        "Material": "020-2000047",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO C/ALLEM 8X50 MM.",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000036",
+        "Material": "020-3000351",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO DE SEG. MY 213D044-04",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000037",
+        "Material": "100-3002533",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TOPE CON TORNILLO YA028D836G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000038",
+        "Material": "100-3002751",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO X12CX-108",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000039",
+        "Material": "100-3002736",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO YA067D673-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000040",
+        "Material": "100-3002205",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO DE AJUSTE P/FRENO YA014D949-03",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000041",
+        "Material": "100-3002261",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO DE DOBLE CUERDA YA041D972-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000042",
+        "Material": "100-3002567",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO X02AC-427",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000043",
+        "Material": "100-3002204",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO DOBLE CUERDA X02AC-653",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000044",
+        "Material": "602-2000014",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO 5X25 MM C/PHILIPS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000045",
+        "Material": "602-2000220",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO 3 X 15 MM C/GOTA PHILLIPS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000046",
+        "Material": "602-2000554",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO DE CRUZ 6X25 MM C/PHILIPS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000047",
+        "Material": "602-3000055",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO 6 X 10 MM CABEZA PLANA DE CRUZ",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000048",
+        "Material": "602-3000056",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLOS DE 4X10MM (X210K7004-10)",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000049",
+        "Material": "602-3000054",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO 5X16MM (X210K7005-16)",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000050",
+        "Material": "602-2000019",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO 1/2''X1'' C/FIJA YS116D261-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000051",
+        "Material": "602-2000001",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO C/ALLEM 6X8 MM.",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000052",
+        "Material": "602-3000235",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO ORNAMENTAL Y419822-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000053",
+        "Material": "602-3000238",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO DE SEGURIDAD YE602D098-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000054",
+        "Material": "602-2000012",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO C/PHILLIPS M5 X 16MM",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000055",
+        "Material": "100-7001397",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "X211A0008-20 / TORNILLO HEXAGONAL",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000056",
+        "Material": "890-3100142",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "TORNILLOS",
+        "Descripcion": "TORNILLO 3/8 X 1” ¼",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000057",
+        "Material": "100-3002300",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PERNOS",
+        "Descripcion": "PERNO EXCENTRICO YA034D315G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000058",
+        "Material": "100-2000924",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PERNOS",
+        "Descripcion": "PERNO EX. MY131D007-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000059",
+        "Material": "100-3002446",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PERNOS",
+        "Descripcion": "PERNO EXCENTRICO YA034D315G02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000060",
+        "Material": "100-3001208",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PERNOS",
+        "Descripcion": "PERNO YA039D846-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000061",
+        "Material": "100-2000923",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PERNOS",
+        "Descripcion": "PERNO MY161D020-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000062",
+        "Material": "100-3002515",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PERNOS",
+        "Descripcion": "PERNO X12QX-16",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000063",
+        "Material": "602-3000107",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PERNOS",
+        "Descripcion": "PERNO ESPECIAL SIN DIBUJO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000064",
+        "Material": "602-3000179",
+        "Agrupador1": "BASICO",
+        "Agrupador2": "PERNOS",
+        "Descripcion": "PERNO YS004D353-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000072",
+        "Material": "200-2000111",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE TIPO AUTO 3AG 250 V 3 AMP",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000073",
+        "Material": "200-2000113",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE TIPO AUTO 3AG A 250 V 10 AMP",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000074",
+        "Material": "200-3000317",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE X60KA-06",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000075",
+        "Material": "200-3000318",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE X60KA-13",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000076",
+        "Material": "200-3000319",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE X60KA-05",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000077",
+        "Material": "200-3000321",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE 10 AMP 250V MR1 X60DA-03",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000078",
+        "Material": "200-3000322",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE 5 AMP 250V MR1 X60DA-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000079",
+        "Material": "200-3000422",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE TERMICO X60TR-22",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000080",
+        "Material": "200-3000453",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE 3 AMP A 250V MR1 X60DA-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000081",
+        "Material": "200-3002760",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE TERMICO YX301D503G03",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000082",
+        "Material": "200-2000112",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE TIPO AUTO 3AG A 250 V 5 AMP",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000083",
+        "Material": "200-2000050",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE FERRAZ 20AMP 690V 14X51",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000084",
+        "Material": "200-3000979",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE TERMICO YX301D556G02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000085",
+        "Material": "200-3002043",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE TERMICO YX301D272G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000086",
+        "Material": "200-2000042",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE FERRAZ W220819 6.9GRC14.51 32A",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000087",
+        "Material": "200-3000616",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE 250V A5  X60GX-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000088",
+        "Material": "200-3000307",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE 250V 300A X60FX-26",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000089",
+        "Material": "200-3000791",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLES DE 20 AMP X60AX-16",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000090",
+        "Material": "200-2000051",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FUSIBLE_TC",
+        "Descripcion": "FUSIBLE FERRAZ 16AMP 690V 14X51",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000091",
+        "Material": "020-2000053",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MECHAS",
+        "Descripcion": "MECHA ACEITERA 1/2''X20 CMS MX-218-AX001",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000097",
+        "Material": "020-2000155",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO E-12 19 X 48 125 VOLTS 6 WATTS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000098",
+        "Material": "020-2000181",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO  MR16 130V  20W  HALOGENO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000099",
+        "Material": "020-2000190",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO DE 3 W 110 V T JAPONES",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000100",
+        "Material": "020-2000446",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO INCANDESCENTE 5 WATTS 24 VOLTS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000101",
+        "Material": "020-2000474",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO SLIM FIT DURALED 5W 32X76 MM E27",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000102",
+        "Material": "020-2000491",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO LED 7 W LUZ BLANCA 6500 K",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000103",
+        "Material": "020-2000493",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO LED 7 W LUZ AMARILLA 3000 K",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000104",
+        "Material": "020-2000156",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO E-12 13 X 34 115V 5W E4325",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000105",
+        "Material": "020-2000473",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO SLIM FIT DURALED 5W 32X76 MM E27",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000106",
+        "Material": "020-3000348",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO 03W X53AA-01 5183520",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000107",
+        "Material": "020-3000354",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO NEON X53NE-02 5180210",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000108",
+        "Material": "020-2000180",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO  MR16 130V  50W  HALOGENO MX53EB",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000109",
+        "Material": "020-3000347",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO 5W 100V X53BA-029 518390",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000110",
+        "Material": "020-2000182",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO DE 25 W",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000111",
+        "Material": "020-2000178",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO HALOGENO 50W 130V E-26 SPOT",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000112",
+        "Material": "020-2000184",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCOS 40W 125V E26 TP14 BLANCO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000113",
+        "Material": "020-3000343",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO DE 48 V DE 2W BAYONETA",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000114",
+        "Material": "020-2000490",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO LED MR16 6.5W 100-127V-60Hz",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000115",
+        "Material": "020-3000344",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCOS P/LUZ DE EMERG. MX53EA01 6V 21W",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000116",
+        "Material": "020-3000352",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCOS DE 25 W 110 V X53BA-11 5183490",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000117",
+        "Material": "020-3000365",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO 110V 10W (X53BA-12) ROSCADO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000118",
+        "Material": "020-3000364",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO 110V 3W (X53BA-01) ROSCADO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000119",
+        "Material": "020-2000054",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "SOCKET DE PORCELANA P/ FOCO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000120",
+        "Material": "020-2000186",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO S11 E17 130V 40W OPACO T JAPONES",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000121",
+        "Material": "020-3000362",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO P/LUZ DE EMERGENCIA MX53EA-01 C22",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000122",
+        "Material": "020-2000177",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO 5W 127V 60HZ MOD1841 E-26 SANELEC",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000123",
+        "Material": "020-2000462",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO 13 WATTS MAGG EXTRA MINI T2 6500",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000124",
+        "Material": "020-2000176",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO DE 15W 127V E26 BLANCO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000125",
+        "Material": "020-2000179",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO 20W 12V HALOGENO MOD 1919",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000126",
+        "Material": "020-2000188",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO ANUNCIO DE 97W 125V E26 CLARO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000127",
+        "Material": "020-2000157",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "FOCOS",
+        "Descripcion": "FOCO TIPO REFLECTOR DE 40W DE 120V R-14",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000128",
+        "Material": "020-2000454",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA 25 W T8 G13 F25T8/TL841 ALTO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000129",
+        "Material": "020-2000464",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA LED MR300 GU10 4500K D/14 V 3.2W",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000130",
+        "Material": "020-2000465",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "BASE P/LAMPARA BLANCA CLAVE L1750-100",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000131",
+        "Material": "020-2000471",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA CIRLED-001/65 100/240V 12W E27",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000132",
+        "Material": "020-2000475",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA LINEAL T8-60 85-265 VOLTS 10W",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000133",
+        "Material": "020-2000479",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "SOQUET P/LAMPARA T-8 DURALED",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000134",
+        "Material": "020-2000492",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA LED 6W 100-240 V 50-60 HZ",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000135",
+        "Material": "020-2000197",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA F17 T8/TL841 17W PHILIPS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000136",
+        "Material": "020-2000200",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA CIRCULAR DE FCL 22W/21",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000137",
+        "Material": "020-2000220",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "SOQUET PARA LAMPARA  MR16  MX52SL",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000138",
+        "Material": "020-2000489",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA LED 3000K MOD.DL-36N5IW",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000139",
+        "Material": "020-2000444",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA LINEAL 17W F178T/TL835",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000140",
+        "Material": "020-2000458",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA 28 WTTS T5 6500K MOD F-9203-0",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000141",
+        "Material": "020-2000076",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "BASE  P/LAMPARA T-8  17 WATTS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000142",
+        "Material": "020-2000213",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "BASE P/LAMPARA 660W 250V MOD. 050-051",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000143",
+        "Material": "020-2000196",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA CIRCULAR  AFC-32W 127V E26 T5",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000144",
+        "Material": "020-2000207",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA DE HALOGENO 20W 12V 36°",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000145",
+        "Material": "020-2000204",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA DE HALOGENO 50W 12V 36°",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000146",
+        "Material": "020-2000461",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "BASE PARA LAMPARA T5",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000147",
+        "Material": "020-2000075",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "BALASTRA P/LAMPARA T-8  17 WATTS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000148",
+        "Material": "020-2000503",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA TUBULAR LED 17W 4100K 60CM",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000149",
+        "Material": "020-2000499",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA LINEAL LED 120-240V 60HZ 21W",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000150",
+        "Material": "020-2000203",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA 39W F48T12/D PHILIPS LUZ DE DIA",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000151",
+        "Material": "020-2000453",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA FLUORESC ESPIRAL 9W 127V 10-60HZ",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000152",
+        "Material": "020-2000496",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA LED 572X 8MM 100-127V 50-60HZ 9W",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000153",
+        "Material": "020-2000457",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA 24 WTTS T5 6500K MOD F-9211-0",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000154",
+        "Material": "020-2000494",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA LED 19 W 3000 K 100-277 V",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000155",
+        "Material": "020-2000463",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA FLUORESC ESPIRAL 9W 127V E-26",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000156",
+        "Material": "020-2000201",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA CIRCULAR LUZ DE DIA 22W T5",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000157",
+        "Material": "020-2000198",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA Y/O TUBO SLIM LINE 75W MIE-041",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000158",
+        "Material": "020-2000205",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA DE 20 W LUZ DE DIA",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000159",
+        "Material": "020-2000208",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA 21WGENERAL ELECTRIC LUZ DE DIA",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000160",
+        "Material": "020-2000456",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA FLUORESC 10 WATTS FL10D T10",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000161",
+        "Material": "021-2000565",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "ARRANCADOR 30-40W P/LAMPARA CIRCULAR",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000162",
+        "Material": "200-3000728",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA FLUORESCENTE YS015B426-07",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000163",
+        "Material": "200-3000723",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA FLUORESCENTE YS005B135-29",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000164",
+        "Material": "200-3002119",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMPARA",
+        "Descripcion": "LAMPARA LED LUZ FRIA 5000-7000K B100 033",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000165",
+        "Material": "100-2001013",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMP_EMERG",
+        "Descripcion": "PLASTICOS/ZAPATAS  MY126C031-03",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000166",
+        "Material": "100-3002213",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMP_EMERG",
+        "Descripcion": "PLASTICO PARA ZAPATA YA047C168-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000167",
+        "Material": "100-3002214",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMP_EMERG",
+        "Descripcion": "PLASTICO PARA ZAPATA YA047C168-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000168",
+        "Material": "100-3002783",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMP_EMERG",
+        "Descripcion": "PLASTICO DE ZAPATA YA177C191-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000169",
+        "Material": "100-3002784",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMP_EMERG",
+        "Descripcion": "PLASTICO DE ZAPATA YA175C746G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000170",
+        "Material": "100-2001014",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMP_EMERG",
+        "Descripcion": "PLASTICOS/ZAPATAS DE CABINA MY126C031-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000171",
+        "Material": "100-3002216",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "LAMP_EMERG",
+        "Descripcion": "PLASTICO PARA ZAPATA YA010C289-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000172",
+        "Material": "200-3002907",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA PARA UCU YL220D769G05",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000173",
+        "Material": "200-2002014",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA PARA MELD 12V MX59CC-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000174",
+        "Material": "200-2002339",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA REC DE 12 VOLTS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000175",
+        "Material": "200-2002767",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA LTH",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000176",
+        "Material": "200-3000699",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA X59CA-07",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000177",
+        "Material": "200-3000984",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA DE EMERGENCIA X59KB-13",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000178",
+        "Material": "200-2002837",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA RECARGABLE SELLADA ACIDO-PLOMO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000179",
+        "Material": "200-3002845",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA NI-MH YL220D769G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000180",
+        "Material": "200-3002743",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA X59KA-53",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000181",
+        "Material": "200-3000698",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA X59CA-09",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000182",
+        "Material": "200-3000701",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA X59CB-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000183",
+        "Material": "601-3000157",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIAS 12V 5 AH",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000184",
+        "Material": "601-3000161",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "BATERIA_RE",
+        "Descripcion": "BATERIA UPS BACKUP APC SMART-UPS 1000VA",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000185",
+        "Material": "005-2000158",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "CAM_ACEITE",
+        "Descripcion": "ACEITE HIDRAULICO ISO68 ELF AZOLLA ZS 68",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000186",
+        "Material": "005-2000160",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "CAM_ACEITE",
+        "Descripcion": "ACEITE DTH 220 SUST CIRKAN ZS-220",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000187",
+        "Material": "005-2000169",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "CAM_ACEITE",
+        "Descripcion": "ACEITE CAJA DE ENGRANES REDUCTELF 320",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000188",
+        "Material": "005-2000171",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "CAM_ACEITE",
+        "Descripcion": "ACEITE HIDRAULICO ISO 32 AZOLLA ZS 32",
+        "Unidad": "L"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000189",
+        "Material": "005-2000164",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "CAM_ACEITE",
+        "Descripcion": "ACEITE 3 EN 1",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000190",
+        "Material": "200-2000039",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "MICRO SWICH Z15-GOB7X OMROM",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000191",
+        "Material": "200-2000120",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "MICRO SWITCH T115-086 15 AMP.",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000192",
+        "Material": "200-2002554",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "ENSAMBLE DE CABLE JJ800",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000193",
+        "Material": "200-3002304",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "MICRO SWITCH X55CA-03",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000194",
+        "Material": "200-3000244",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "MICRO SWITCH Z-15GQ-B 15A 125V X55CA-04",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000195",
+        "Material": "200-2000121",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "MICRO SWITCH HOMMRON Z-15Q ZZ -B 15",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000196",
+        "Material": "200-3000243",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "MICRO SWITCH X55CA-07",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000197",
+        "Material": "200-3000424",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "MICRO SWITCH Z-15EQ22R-1 X55CK-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000198",
+        "Material": "200-3002710",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "MICRO SWITCH X55CA-05",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000199",
+        "Material": "200-2002695",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "MICRO SWITCH D4N-5A62",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000200",
+        "Material": "200-3002261",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "MICRO SWITCH DE SEGURIDAD X55CA-06",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000201",
+        "Material": "200-3000224",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "MICROSWICH",
+        "Descripcion": "MICRO SWITCH (Z-15GW-8) X55CA-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000202",
+        "Material": "021-3000664",
+        "Agrupador1": "MEDIO",
+        "Agrupador2": "CABLE_ELEC",
+        "Descripcion": "CABLE VINYL X147J",
+        "Unidad": "M"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000203",
+        "Material": "100-3002300",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "EXEN_COLGA",
+        "Descripcion": "PERNO EXCENTRICO YA034D315G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000204",
+        "Material": "100-3002372",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "EXEN_COLGA",
+        "Descripcion": "EXCENTRICO YA073D255G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000205",
+        "Material": "100-3002274",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "EXEN_COLGA",
+        "Descripcion": "EXCENTRICO YA028D910G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000206",
+        "Material": "100-3002446",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "EXEN_COLGA",
+        "Descripcion": "PERNO EXCENTRICO YA034D315G02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000207",
+        "Material": "100-3001112",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "EXEN_COLGA",
+        "Descripcion": "EXCENTRICO TIPO P/PTA PISO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000208",
+        "Material": "100-3002187",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "EXEN_COLGA",
+        "Descripcion": "EXCENTRICO DE HULE Y411222G02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000209",
+        "Material": "100-2000966",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "EXEN_COLGA",
+        "Descripcion": "EXCENTRICO P/PUERTA PISO C/RODAJA",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000210",
+        "Material": "200-2002903",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "VENTI_CABI",
+        "Descripcion": "VENTILADOR FB-9",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000211",
+        "Material": "200-3000529",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "VENTI_CABI",
+        "Descripcion": "VENTILADOR P/CABINA FB-9B",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000212",
+        "Material": "200-3001959",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "VENTI_CABI",
+        "Descripcion": "VENTILADOR FB-13C FB-13C",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000213",
+        "Material": "200-3002901",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "VENTI_CABI",
+        "Descripcion": "VENTILADOR YA183A532G31",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000214",
+        "Material": "100-3002907",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "VENTI_CABI",
+        "Descripcion": "BASE YA183A532G43",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000215",
+        "Material": "100-3002490",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "ACEITERAS",
+        "Descripcion": "ACEITERA YA038B139G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000216",
+        "Material": "602-3000153",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "ACEITERAS",
+        "Descripcion": "ENSAMBLE DE ACEITERA YA160B695G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000217",
+        "Material": "602-3000156",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "ACEITERAS",
+        "Descripcion": "ACEITERA YA038B139G02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000218",
+        "Material": "602-3000190",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "ACEITERAS",
+        "Descripcion": "ACEITERA AUTOMATICA YS124A271G15",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000219",
+        "Material": "020-2000460",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BALASTRAS",
+        "Descripcion": "BALASTRO ELECT 2X28 WTTS 127V+-10%",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000220",
+        "Material": "020-2000083",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BALASTRAS",
+        "Descripcion": "BALASTRO P/LAMP HAL MCA MAGG NOM 1065",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000221",
+        "Material": "020-2000075",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BALASTRAS",
+        "Descripcion": "BALASTRA P/LAMPARA T-8  17 WATTS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000222",
+        "Material": "020-2000085",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BALASTRAS",
+        "Descripcion": "BALASTRA DE 2 X 20 W. 127 E/R",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000223",
+        "Material": "020-2000079",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BALASTRAS",
+        "Descripcion": "BALASTRO DE 2X21 W A 127V",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000224",
+        "Material": "020-2000081",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BALASTRAS",
+        "Descripcion": "BALASTRA 2 X 75 W MIE-460",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000225",
+        "Material": "021-3000580",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BALASTRAS",
+        "Descripcion": "BALASTRA YS007B253-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000226",
+        "Material": "200-2000039",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "MICRO SWICH Z15-GOB7X OMROM",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000227",
+        "Material": "200-2000120",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "MICRO SWITCH T115-086 15 AMP.",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000228",
+        "Material": "200-2002554",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "ENSAMBLE DE CABLE JJ800",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000229",
+        "Material": "200-3002304",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "MICRO SWITCH X55CA-03",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000230",
+        "Material": "200-3000244",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "MICRO SWITCH Z-15GQ-B 15A 125V X55CA-04",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000231",
+        "Material": "200-2000121",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "MICRO SWITCH HOMMRON Z-15Q ZZ -B 15",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000232",
+        "Material": "200-3000243",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "MICRO SWITCH X55CA-07",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000233",
+        "Material": "200-3000424",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "MICRO SWITCH Z-15EQ22R-1 X55CK-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000234",
+        "Material": "200-3002710",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "MICRO SWITCH X55CA-05",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000235",
+        "Material": "200-2002695",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "MICRO SWITCH D4N-5A62",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000236",
+        "Material": "200-3002261",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "MICRO SWITCH DE SEGURIDAD X55CA-06",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000237",
+        "Material": "200-3000224",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "MICRO_SEGU",
+        "Descripcion": "MICRO SWITCH (Z-15GW-8) X55CA-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000238",
+        "Material": "200-2000035",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO FIJO TIPO L",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000239",
+        "Material": "200-3000335",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO FIJO F-145  X23LA-03T-BA",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000240",
+        "Material": "200-3000338",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO FIJO  (DEC-100)  B465596-06",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000241",
+        "Material": "200-3000461",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO FIJO  4D-BA  DEC-4 X23LA-03",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000242",
+        "Material": "200-3000673",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO FIJO  (DEC-50 ) Y428267-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000243",
+        "Material": "200-2000061",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO MOVIL  T. CORAZON YX100D319G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000244",
+        "Material": "200-3000462",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO MOVIL T-4D-BA DEC-4 Y320854G03",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000245",
+        "Material": "200-3000336",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO MOVIL  DEC-50 PALETA Y428188G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000246",
+        "Material": "200-3000337",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO MOVIL  (DEC 100) Y428187G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000247",
+        "Material": "200-3000334",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO MOVIL  DEC-4 PALETA Y320854G02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000248",
+        "Material": "200-2000046",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO MOVIL COBRE DEC-50 TIPO PALETA",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000249",
+        "Material": "200-2000060",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO MOVIL OLT P/PUERTA AC-2",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000250",
+        "Material": "200-2000047",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO MOVIL COBRE DEC-100 TIPO PALETA",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000251",
+        "Material": "200-2000053",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "INTERLOCK",
+        "Descripcion": "CONTACTO MOVIL P/OPERADOR PISO",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000252",
+        "Material": "200-3002272",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DE OPERADOR 150S8M3720",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000253",
+        "Material": "100-2000961",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDAS DE 3V NO.560 YA040D284-04",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000254",
+        "Material": "100-3002207",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DE OPERADOR YA209C301-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000255",
+        "Material": "100-3002208",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DE OPERADOR YA209C301-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000256",
+        "Material": "100-3002896",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA YA035A993-20",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000257",
+        "Material": "100-2002893",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DE OPERADOR 150S5M3580/YA209C30101",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000258",
+        "Material": "100-3001128",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DE HULE  2413120  YS004C014-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000259",
+        "Material": "100-3002373",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DE OPERADOR YA209C301-03",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000260",
+        "Material": "100-2000939",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDAS T-V DENTADA 6427-GS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000261",
+        "Material": "100-2001821",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DENTADA BANDO STS ISO S4.5M 801",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000262",
+        "Material": "100-3002532",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DE TENSION 5144M022",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000263",
+        "Material": "100-2002684",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA TIPO 3V-425",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000264",
+        "Material": "100-2002890",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DE OPERADOR 150S8M3720",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000265",
+        "Material": "100-2000955",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA TIPO V CITLA 10X1097MM.",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000266",
+        "Material": "100-3001129",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DE HULE  5605260 YS004C014-03",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000267",
+        "Material": "100-3001191",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA 2520 9.5X1325 LA YA035A993-24",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000268",
+        "Material": "100-3001111",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA TIPO V YS004C014G02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000269",
+        "Material": "100-3001182",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA TIPO V  3V 750 YS004C014-05",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000270",
+        "Material": "602-2000543",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "UNIBANDA 3V630",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000271",
+        "Material": "602-2000511",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DE HULE 3V-600",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000272",
+        "Material": "602-3000259",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA TIPO V 630 YS004C014-04",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000273",
+        "Material": "602-3000503",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA 3V-560 YA034C284G06L01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000274",
+        "Material": "602-2000502",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "BANDA DE HULE 3V 530",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000275",
+        "Material": "131-3001508",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "BAND_MOTOR",
+        "Descripcion": "YA209C301-01 / BANDA STS",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000276",
+        "Material": "100-2001021",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "GOMA_CABI",
+        "Descripcion": "PROTECTOR DE VIBRACION MA069C681",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000277",
+        "Material": "100-3002554",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "GOMA_TOPE",
+        "Descripcion": "TOPE DE PUERTA 5142M090",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000278",
+        "Material": "100-2000969",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "GOMA_TOPE",
+        "Descripcion": "TOPE DE HULE NEOP.C/H 42.0 X 23.6MM",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000279",
+        "Material": "100-2001025",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "GOMA_TOPE",
+        "Descripcion": "TOPE DE HULE MX41EG-001B (KISS)",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000280",
+        "Material": "100-3002533",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "GOMA_TOPE",
+        "Descripcion": "TOPE CON TORNILLO YA028D836G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000281",
+        "Material": "100-2000958",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "GOMA_TOPE",
+        "Descripcion": "TOPE DE HULE MX41EX",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000282",
+        "Material": "100-2000979",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "GOMA_TOPE",
+        "Descripcion": "TOPE DE HULE MA028D836",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000283",
+        "Material": "602-3000262",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "GOMA_TOPE",
+        "Descripcion": "TOPE DE PUERTA YS013C460G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000284",
+        "Material": "602-2000462",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "GOMA_TOPE",
+        "Descripcion": "TOPE DE PUERTA  YS013C460G01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000285",
+        "Material": "020-2000240",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "CABLE_ACER",
+        "Descripcion": "CABLE D/ACERO 8MM.MX-111-A08 IMP.",
+        "Unidad": "M"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000286",
+        "Material": "200-3002308",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "CABLE_ACER",
+        "Descripcion": "CABLE DE ACERO YA096C644G03L08",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000287",
+        "Material": "200-3002309",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "CABLE_ACER",
+        "Descripcion": "CABLE DE ACERO YA096C644G03L09",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000288",
+        "Material": "100-2001039",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "CABLE_ACER",
+        "Descripcion": "CABLE DE ACERO SUPER FLEXI 1/8 plg",
+        "Unidad": "M"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000289",
+        "Material": "100-3001927",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "CABLE_ACER",
+        "Descripcion": "CABLE DE ACERO GOBERNADOR 10MM X135G10SP",
+        "Unidad": "M"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000290",
+        "Material": "100-3002631",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "CABLE_ACER",
+        "Descripcion": "CABLE DE ACERO YA096C644G05L11",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000291",
+        "Material": "100-3002630",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "CABLE_ACER",
+        "Descripcion": "CABLE DE ACERO YA096C644G04L10",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000292",
+        "Material": "100-3002633",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "CABLE_ACER",
+        "Descripcion": "CABLE DE ACERO YA096C644G03L19",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000293",
+        "Material": "100-3002632",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "CABLE_ACER",
+        "Descripcion": "CABLE DE ACERO YA096C644G03L18",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000294",
+        "Material": "100-3001091",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "RETEN_ACEI",
+        "Descripcion": "RETEN SS-RD-70-100-18 X30RD-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000295",
+        "Material": "100-3002575",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "RETEN_ACEI",
+        "Descripcion": "RETEN X30PA-09",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000296",
+        "Material": "100-3001106",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "RETEN_ACEI",
+        "Descripcion": "RETEN DE ACEITE 152-80-105 X30RC-03",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000297",
+        "Material": "100-3001084",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "RETEN_ACEI",
+        "Descripcion": "RETEN DE ACEITE 75-100-18 X30PA-06",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000298",
+        "Material": "100-3001085",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "RETEN_ACEI",
+        "Descripcion": "RETEN  SS-70-100-18 ABIERTO X30RB-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000299",
+        "Material": "100-3001898",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "RETEN_ACEI",
+        "Descripcion": "RETEN DE ACEITE 55-78-12 X30RD-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000300",
+        "Material": "100-3001153",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "RETEN_ACEI",
+        "Descripcion": "RETEN DE ACEITE 65-110-13 X30PA-07",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000301",
+        "Material": "200-3002868",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "TRANF_ENER",
+        "Descripcion": "TRANSFORMADOR 200-2000116 YX100C378-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000302",
+        "Material": "200-3002454",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "TRANF_ENER",
+        "Descripcion": "TRANSFORMADOR DIFERENCIAL YX401D002-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000303",
+        "Material": "200-3001143",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "TRANF_ENER",
+        "Descripcion": "TRANSFORMADOR   440V YX100C378-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000304",
+        "Material": "200-2000116",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "TRANF_ENER",
+        "Descripcion": "TRANSFORMADOR YX100C378-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000305",
+        "Material": "200-2002867",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "TRANF_ENER",
+        "Descripcion": "TRANSFORMADOR YX100C378-01",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000306",
+        "Material": "200-3000772",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "TRANF_ENER",
+        "Descripcion": "TRANSFORMADOR X54DS-18",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000307",
+        "Material": "200-3000987",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "TRANF_ENER",
+        "Descripcion": "TRANSFORMADOR X54GS-17",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000308",
+        "Material": "200-3002184",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "TRANF_ENER",
+        "Descripcion": "TRANSFORMADOR YX303C909-02",
+        "Unidad": "PZ"
+      },
+      {
+        "Mandt": "400",
+        "Id": "0000000309",
+        "Material": "200-3000804",
+        "Agrupador1": "SEMIFULL",
+        "Agrupador2": "TRANF_ENER",
+        "Descripcion": "TRANSFORMADOR EP. YX100C354-01",
+        "Unidad": "PZ"
+      }
+    ]
+  }
+}
