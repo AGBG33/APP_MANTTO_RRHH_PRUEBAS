@@ -9,7 +9,7 @@
 export {
   SapEmployeeProvider,
   useSapEmployee,
-} from "../../context/SapEmployeeContext";
+} from "./SapEmployeeContext";
 
 export {
   obtenerCorreoAutenticado,
