@@ -1,92 +1,11 @@
-// src/services/rhEmployees.js
-// Consulta de EmployeeSet en SAP QAS mediante api.js (token Azure de la app).
-import api from "./api";
-const EMPLOYEE_SET = "/api/odata/ZHMC_ATTENDANCE_MONITORING_SRV/EmployeeSet";
-const RH_QAS_BASE = "https://my-node-api-qas-01.cfapps.us10-001.hana.ondemand.com";
 
-export function prepararBusquedaEmpleadoRH(identificador) {
-  const texto = String(identificador ?? "").trim();
-  if (!texto) throw Error("Ingresa un número de empleado o correo.");
-  if (/^\d{1,8}$/.test(texto)) return { tipo: "numero", propiedad: "PersonalNumber", valor: texto.padStart(8, "0") };
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(texto) && texto.length <= 241)
-    return { tipo: "correo", propiedad: "Email", valor: texto };
-  throw Error("Ingresa una nómina de hasta 8 dígitos o un correo válido.");
-}
-const escapar = s => String(s).replace(/'/g, "''");
-const str = (item, key) => String(item?.[key] ?? "").trim();
+/**
+ * Compatibilidad temporal durante la migración.
+ *
+ * El servicio de consulta del empleado SAP
+ * ahora pertenece al núcleo compartido.
+ */
 
-export function mapearEmpleadoRH(item) {
-  return {
-    personalNumber: str(item, "PersonalNumber"),
-    fullName: str(item, "FullName"),
-    email: str(item, "Email"),
-    shift: str(item, "Shift"),
-    position: str(item, "Position"),
-    zone: str(item, "Zone"),
-    hourly: str(item, "Hourly"),
-    base: str(item, "Base"),
-    centerOffice: str(item, "CenterOffice"),
-    status: str(item, "Status"),
-    descriptionStatus: str(item, "DescriptionStatus"),
-    registerType: str(item, "RegisterType"),
-    authorisedRegister: str(item, "AuthorisedRegister"),
-    centerCode: str(item, "CenterCode"),
-    scheduleCode: str(item, "ScheduleCode"),
-    scheduleDetail: str(item, "ScheduleDetail"),
-    role: str(item, "Role"),
-    groupPerson: str(item, "GroupPerson"),
-    groupPersonDescription: str(item, "GroupPersonDescription"),
-    // Sólo los códigos 02/04 intervienen por ahora en estas reglas.
-    // Los demás códigos SAP se conservan sin interpretar.
-    relationJob: str(item, "RelationJob"),
-    relationJobDescription: str(item, "RelationJobDescription"),
-    // Horario y tiempo de comida. SAP es la única fuente; sin valor fijo en la app.
-    timeFoodSchedule: str(item, "TimeFoodSchedule"),
-    timeFood: str(item, "TimeFood"),
-  };
-}
+export * from "../core/employee/employeeService";
 
-export async function obtenerEmpleadoRH(identificador) {
-  const filtro = prepararBusquedaEmpleadoRH(identificador);
-  // SAP Gateway puede comparar Email distinguiendo mayúsculas/minúsculas.
-  // No ampliamos la búsqueda a todo EmployeeSet ni permitimos tomar otro empleado.
-  const consultas = filtro.tipo === "numero"
-    ? [`PersonalNumber eq '${escapar(filtro.valor)}'`]
-    : [...new Set([filtro.valor.toUpperCase(), filtro.valor, filtro.valor.toLowerCase()])]
-        .map(email => `Email eq '${escapar(email)}'`);
-  if (filtro.tipo === "correo") {
-    // Opcional: algunos Gateway soportan funciones OData; si no, se omite el intento.
-    consultas.push(`tolower(Email) eq '${escapar(filtro.valor.toLowerCase())}'`);
-  }
-  try {
-    for (let i = 0; i < consultas.length; i++) {
-      let response;
-      try {
-        response = await api.get(EMPLOYEE_SET, {
-          baseURL: RH_QAS_BASE,
-          params: { $filter: consultas[i], $format: "json" },
-          timeout: 45000,
-        });
-      } catch (e) {
-        const optional = consultas[i].startsWith("tolower(");
-        if (optional && [400, 405, 501].includes(e?.response?.status)) break;
-        throw e;
-      }
-      const items = response?.data?.d?.results;
-      if (!Array.isArray(items)) throw Error("SAP devolvió un formato distinto de d.results.");
-      const match = items.find(item => filtro.tipo === "numero"
-        ? str(item, "PersonalNumber").padStart(8, "0") === filtro.valor
-        : str(item, "Email").toLowerCase() === filtro.valor.toLowerCase());
-      if (match) return { ...mapearEmpleadoRH(match), numeroConfirmadoEnSAP: true };
-    }
-    return null;
-  } catch (error) {
-    const status = error?.response?.status;
-    if (status === 401) throw Error("Tu sesión expiró. Inicia sesión nuevamente.");
-    if (status === 403) throw Error("SAP rechazó la consulta del empleado por permisos.");
-    if (status === 404) throw Error("No se encontró EmployeeSet en QAS.");
-    if (status >= 500) throw Error("SAP QAS devolvió un error. Inténtalo después.");
-    throw error;
-  }
-}
-export default obtenerEmpleadoRH;
+export { default } from "../core/employee/employeeService";
