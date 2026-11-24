@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useNavigation, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import { useDrawer } from "../context/DrawerContext";
+import { useDrawer } from "../core/navigation/DrawerContext";
 
 const COLORS = {
   white: "#FFFFFF",

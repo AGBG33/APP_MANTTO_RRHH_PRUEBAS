@@ -15,7 +15,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "../core/auth/index";
-import { useDrawer } from "../context/DrawerContext";
+import { useDrawer } from "../core/navigation/DrawerContext";
 
 const FIORI = {
   overlay: "rgba(0,0,0,0.35)",

@@ -1,4 +1,4 @@
-// src/context/DrawerContext.js
+// src/core/navigation/DrawerContext.js
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
 const DrawerContext = createContext();

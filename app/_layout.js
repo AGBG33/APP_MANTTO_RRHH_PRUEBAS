@@ -9,7 +9,7 @@
  import { SapEmployeeProvider } from '../src/core/employee';
  import { OrdenesTecnicoProvider } from '../src/apps/mantenimiento/context/OrdenesTecnicoContext';
  import { UbicacionProvider } from '../src/apps/mantenimiento/context/UbicacionContext';
- import { DrawerProvider } from '../src/context/DrawerContext';
+ import { DrawerProvider } from '../src/core/navigation/DrawerContext';
  import SideDrawer from '../src/components/SideDrawer';
  import { OfflineProvider } from '../src/apps/mantenimiento/offline/OfflineProvider';
  import AnimatedSplashVideo from '../src/components/AnimatedSplashVideo';
