@@ -1,17 +1,17 @@
 
 /**
- * Acceso central al perfil del empleado SAP.
+ * Acceso central a la información del empleado.
  *
- * Durante la migración reutilizamos el
- * SapEmployeeContext existente.
- *
- * Posteriormente separaremos los datos
- * generales del empleado de la lógica
- * específica de Recursos Humanos.
+ * Durante la migración, el proveedor de perfil
+ * SAP continúa utilizando su implementación actual.
  */
 
 export {
   SapEmployeeProvider,
   useSapEmployee,
-  correoAutenticadoRH,
 } from "../../context/SapEmployeeContext";
+
+export {
+  obtenerCorreoAutenticado,
+  correoAutenticadoRH,
+} from "./identity";

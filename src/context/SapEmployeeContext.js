@@ -13,9 +13,11 @@ import { guardarPerfilRHCache, leerPerfilRHCachePorCorreo,
 import { consultarHistorialRH } from "../services/rhHistory";
 import { obtenerTurnoDelDia, hoyISO } from "../services/rhPolicies";
 import { mesLaboralRH } from "../services/rhBusinessRules";
+import { correoAutenticadoRH } from "../core/employee/identity";
+
+export { correoAutenticadoRH };
 
 const SapEmployeeContext = createContext(null);
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Coincide con el maximo de sesion local de AuthContext (15 dias).
 // La lectura del perfil no confirma un envio a SAP; cada marcacion offline
 // tiene validaciones propias y queda pendiente hasta sincronizar.
@@ -35,17 +37,6 @@ const ESTADO_INICIAL = {
   origenPerfil: null, perfilGuardadoEn: null, perfilDesactualizado: false,
   estadoOffline: "desconocido", // preparando | listo | falta_historial | cache | desconocido
 };
-
-export function correoAutenticadoRH(user) {
-  if (!user) return "";
-  const opciones = [
-    user.correo, user.email, user.mail,
-    user.preferred_username, user.userPrincipalName, user.upn,
-    user.username,
-  ];
-  const value = opciones.find(x => typeof x === "string" && EMAIL_REGEX.test(x.trim()));
-  return String(value || "").trim().toLowerCase();
-}
 
 function falloDeTransporte(error) {
   // Un rechazo de autenticacion o una respuesta de SAP NO se interpreta como modo offline.
