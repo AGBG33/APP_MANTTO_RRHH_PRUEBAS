@@ -5,17 +5,17 @@
  import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
  import * as SplashScreen from 'expo-splash-screen';
 
- import { AuthProvider } from '../src/context/AuthContext';
- import SapEmployeeProvider from '../src/context/SapEmployeeContext';
- import { OrdenesTecnicoProvider } from '../src/context/OrdenesTecnicoContext';
- import { UbicacionProvider } from '../src/context/UbicacionContext';
+ import { AuthProvider } from '../src/core/auth';
+ import { SapEmployeeProvider } from '../src/core/employee';
+ import { OrdenesTecnicoProvider } from '../src/apps/mantenimiento/context/OrdenesTecnicoContext';
+ import { UbicacionProvider } from '../src/apps/mantenimiento/context/UbicacionContext';
  import { DrawerProvider } from '../src/context/DrawerContext';
  import SideDrawer from '../src/components/SideDrawer';
- import { OfflineProvider } from '../src/offline/OfflineProvider';
+ import { OfflineProvider } from '../src/apps/mantenimiento/offline/OfflineProvider';
  import AnimatedSplashVideo from '../src/components/AnimatedSplashVideo';
- import RHOfflineSyncAgent from '../src/rrhh/components/RHOfflineSyncAgent';
- import RHDelaysPreloadAgent from '../src/rrhh/components/RHDelaysPreloadAgent';
- import RHReminderAgent from '../src/rrhh/components/RHReminderAgent';
+ import RHOfflineSyncAgent from '../src/apps/rrhh/components/RHOfflineSyncAgent';
+ import RHDelaysPreloadAgent from '../src/apps/rrhh/components/RHDelaysPreloadAgent';
+ import RHReminderAgent from '../src/apps/rrhh/components/RHReminderAgent';
 
  SplashScreen.preventAutoHideAsync();
 
