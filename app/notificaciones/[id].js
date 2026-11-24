@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 import Header from '../../src/components/Header';
 import { useNotificaciones } from '../../src/context/NotificacionesContext';
-import { useAuth } from '../../src/context/AuthContext';
+import { useAuth } from '../../src/core/auth/index';
 import api from '../../src/services/api'; // 👈 asumo que ya lo usas en tu app
 
 const FIORI = {

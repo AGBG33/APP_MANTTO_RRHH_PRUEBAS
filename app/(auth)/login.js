@@ -10,7 +10,7 @@ import {
   StatusBar,
   ActivityIndicator,
 } from "react-native";
-import { useAuth } from "../../src/context/AuthContext";
+import { useAuth } from "../../src/core/auth/index";
 import { router } from "expo-router";
 
 const COLORS = {

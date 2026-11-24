@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { View, FlatList, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../../src/components/Header';
-import { useAuth } from '../../src/context/AuthContext';
+import { useAuth } from '../../src/core/auth/index';
 import { useNotificaciones } from '../../src/context/NotificacionesContext';
 import { router } from 'expo-router';
 

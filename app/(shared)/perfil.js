@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, Image, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Header from "../../src/components/Header";
-import { useAuth } from "../../src/context/AuthContext";
+import { useAuth } from "../../src/core/auth/index";
 import Colors from "../../src/constants/colors";
 
 export default function PerfilScreen() {

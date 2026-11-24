@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Redirect } from "expo-router";
 
-import { useAuth } from "../src/context/AuthContext";
+import { useAuth } from "../src/core/auth/index";
 import { useOffline } from "../src/offline/OfflineProvider";
 import { usePermissions } from "../src/core/permissions/usePermissions";
 import { PERMISSIONS } from "../src/core/permissions/catalog";

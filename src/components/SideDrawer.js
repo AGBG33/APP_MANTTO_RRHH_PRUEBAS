@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../core/auth/index";
 import { useDrawer } from "../context/DrawerContext";
 
 const FIORI = {

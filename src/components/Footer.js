@@ -3,7 +3,7 @@ import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Text, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../core/auth/index';
 
 const FIORI = {
   barBg: '#FFFFFF',

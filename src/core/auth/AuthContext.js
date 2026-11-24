@@ -10,15 +10,15 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 import { router } from "expo-router";
-import api from "../services/api";
+import api from "../../services/api";
 
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
 import Constants from "expo-constants";
 
-import { authGet, authSet, authDel } from "../offline/db";
-import { isOnline } from "../offline/net";
+import { authGet, authSet, authDel } from "../../offline/db";
+import { isOnline } from "../../offline/net";
 
 WebBrowser.maybeCompleteAuthSession();
 

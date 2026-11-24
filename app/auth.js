@@ -4,7 +4,7 @@ import { View, Text, ActivityIndicator } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { useAuth } from "../src/context/AuthContext";
+import { useAuth } from "../src/core/auth/index";
 import { API_URL } from "../src/services/api";
 
 export default function AuthCallbackScreen() {
