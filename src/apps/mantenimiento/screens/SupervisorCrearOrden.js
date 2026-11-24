@@ -17,7 +17,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Header from "../../../components/Header";
-import api from "../../../services/api";
+import api from "../../../core/api/index";
 
 const COLORS = {
   pageBg: "#F4F6F9",

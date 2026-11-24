@@ -16,7 +16,7 @@ import {
 import { Calendar, LocaleConfig } from "react-native-calendars";
 import { Ionicons } from "@expo/vector-icons";
 import Header from "../../../components/Header";
-import { useAuth } from "../../../context/AuthContext";
+import { useAuth } from "../../../core/auth/index";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // ✅ OFFLINE service
@@ -25,7 +25,7 @@ import {
   rescheduleWorkorders,
   fetchSupervisorEmployees,
   reassignWorkorderTechnician,
-} from "../../../services/reprogramacionesSupervisor";
+} from "../services/reprogramacionesSupervisor";
 
 /* ====================== Locale ES ====================== */
 LocaleConfig.locales.es = {

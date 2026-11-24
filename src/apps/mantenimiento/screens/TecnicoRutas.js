@@ -23,10 +23,10 @@ import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 
 import Header from "../../../components/Header";
-import api from "../../../services/api";
-import { useAuth } from "../../../context/AuthContext";
-import { useOrdenesTecnico } from "../../../context/OrdenesTecnicoContext";
-import { loadOrdenTecnicoDetail } from "../../../offline/ordenesTecnicoCache";
+import api from "../../../core/api/index";
+import { useAuth } from "../../../core/auth/index";
+import { useOrdenesTecnico } from "../context/OrdenesTecnicoContext";
+import { loadOrdenTecnicoDetail } from "../offline/ordenesTecnicoCache";
 
 const FIORI = {
   pageBg: "#F7F7F7",

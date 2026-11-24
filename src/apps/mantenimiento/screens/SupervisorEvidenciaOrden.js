@@ -17,8 +17,8 @@ import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Header from "../../../components/Header";
-import api from "../../../services/api";
-import { fetchOperacionesSupervisor } from "../../../services/operacionesSupervisor";
+import api from "../../../core/api/index";
+import { fetchOperacionesSupervisor } from "../services/operacionesSupervisor";
 import * as ImageManipulator from "expo-image-manipulator";
 
 const COLORS = {

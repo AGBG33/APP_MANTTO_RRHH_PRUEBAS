@@ -12,19 +12,19 @@ import {
 } from "react-native";
 import Header from "../../../../src/components/Header";
 import { useLocalSearchParams, router } from "expo-router";
-import { useAuth } from "../../../../src/context/AuthContext";
-import { useOrdenesTecnico } from "../../../../src/context/OrdenesTecnicoContext";
+import { useAuth } from "../../../../src/core/auth/index";
+import { useOrdenesTecnico } from "../../../../src/apps/mantenimiento/context/OrdenesTecnicoContext";
 
 import {
   fetchDatosNoMantenimiento,
   guardarCartaNoMantenimiento,
-} from "../../../../src/services/noMantenimiento";
+} from "../../../../src/apps/mantenimiento/services/noMantenimiento";
 
 import {
   setLocalStatusPatch,
   patchCacheOrdenesTecnicoList,
   patchCacheOrdenTecnicoDetail,
-} from "../../../../src/offline/ordenesTecnicoLocalPatch";
+} from "../../../../src/apps/mantenimiento/offline/ordenesTecnicoLocalPatch";
 
 function Row({ label, value }) {
   return (

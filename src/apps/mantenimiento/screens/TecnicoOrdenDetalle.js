@@ -16,10 +16,10 @@ import NetInfo from "@react-native-community/netinfo";
 import { WebView } from "react-native-webview";
 
 import Header from "../../../components/Header";
-import api from "../../../services/api";
-import { useAuth } from "../../../context/AuthContext";
-import { useOrdenesTecnico } from "../../../context/OrdenesTecnicoContext";
-import { addPageNumbersToPdfBase64 } from "../../../services/pdf/addPageNumbersToPdf";
+import api from "../../../core/api/index";
+import { useAuth } from "../../../core/auth/index";
+import { useOrdenesTecnico } from "../context/OrdenesTecnicoContext";
+import { addPageNumbersToPdfBase64 } from "../pdf/addPageNumbersToPdf";
 import { useLocalSearchParams, router } from "expo-router";
 
 import {
@@ -28,17 +28,17 @@ import {
   shouldCacheDetailByOrder,
   isCacheFresh,
   ORDENES_CACHE_TTL_MS,
-} from "../../../offline/ordenesTecnicoCache";
+} from "../offline/ordenesTecnicoCache";
 
 import {
   processSapQueue,
   upsertSapQueueItem,
-} from "../../../offline/sapQueue";
+} from "../offline/sapQueue";
 import {
   setLocalStatusPatch,
   patchCacheOrdenesTecnicoList,
   patchCacheOrdenTecnicoDetail,
-} from "../../../offline/ordenesTecnicoLocalPatch";
+} from "../offline/ordenesTecnicoLocalPatch";
 
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -48,12 +48,12 @@ import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
 
 // ✅ HTML/PDF mantenimiento (plantillas + operaciones)
-import { buildMantenimientoHtml } from "../../../services/templates/buildMantenimientoHtml";
+import { buildMantenimientoHtml } from "../templates/buildMantenimientoHtml";
 import {
   fetchEquipmentType,
   getEquipmentTypeFromOrder,
   normalizeEquipmentType,
-} from "../../../services/equipmentType";
+} from "../services/equipmentType";
 
 // ✅ Secciones (segmentación)
 import EncabezadoDetalleOrden from "../components/ordenDetalle/EncabezadoDetalleOrden";

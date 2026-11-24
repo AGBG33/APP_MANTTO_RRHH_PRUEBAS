@@ -25,9 +25,9 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
 import Header from "../../../../src/components/Header";
-import api from "../../../../src/services/api";
-import { useAuth } from "../../../../src/context/AuthContext";
-import { buildInspeccionAnualMantenimientoHtml } from "../../../../src/services/templates/inspeccion_anual_mantenimiento/buildInspeccionAnualMantenimientoHtml";
+import api from "../../../../src/core/api/index";
+import { useAuth } from "../../../../src/core/auth/index";
+import { buildInspeccionAnualMantenimientoHtml } from "../../../../src/apps/mantenimiento/templates/inspeccion_anual_mantenimiento/buildInspeccionAnualMantenimientoHtml";
 
 const UI = {
   bg: "#F4F6F8",

@@ -17,8 +17,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Calendar, LocaleConfig } from "react-native-calendars";
 import { Ionicons } from "@expo/vector-icons";
 import Header from "../../../components/Header";
-import api from "../../../services/api";
-import { useAuth } from "../../../context/AuthContext";
+import api from "../../../core/api/index";
+import { useAuth } from "../../../core/auth/index";
 
 /* ====================== Locale ES ====================== */
 LocaleConfig.locales.es = {

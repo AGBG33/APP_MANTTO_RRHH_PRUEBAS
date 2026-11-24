@@ -30,8 +30,8 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
 import Header from "../../../../src/components/Header";
-import { useAuth } from "../../../../src/context/AuthContext";
-import { buildReporteEmergenciaHtml } from "../../../../src/services/templates/reporte_emergencia/buildReporteEmergenciaHtml";
+import { useAuth } from "../../../../src/core/auth/index";
+import { buildReporteEmergenciaHtml } from "../../../../src/apps/mantenimiento/templates/reporte_emergencia/buildReporteEmergenciaHtml";
 
 const UI = {
   bg: "#F4F6F8",

@@ -15,8 +15,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Header from "../../../components/Header";
 
-import { useOffline } from "../../../offline/OfflineProvider";
-import { bootstrapPrefetchConsumiblesCatalogo } from "../../../offline/bootstrapConsumiblesCatalogo";
+import { useOffline } from "../offline/OfflineProvider";
+import { bootstrapPrefetchConsumiblesCatalogo } from "../offline/bootstrapConsumiblesCatalogo";
 
 // ====== Datos del menú ======
 const TILES = [

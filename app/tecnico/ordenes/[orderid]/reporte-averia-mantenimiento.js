@@ -27,9 +27,9 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
 import Header from "../../../../src/components/Header";
-import api from "../../../../src/services/api";
-import { useAuth } from "../../../../src/context/AuthContext";
-import { buildReporteAveriaMantenimientoHtml } from "../../../../src/services/templates/reporte_averia_mantenimiento/buildReporteAveriaMantenimientoHtml";
+import api from "../../../../src/core/api/index";
+import { useAuth } from "../../../../src/core/auth/index";
+import { buildReporteAveriaMantenimientoHtml } from "../../../../src/apps/mantenimiento/templates/reporte_averia_mantenimiento/buildReporteAveriaMantenimientoHtml";
 
 const UI = {
   bg: "#F4F6F8",

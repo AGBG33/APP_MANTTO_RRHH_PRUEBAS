@@ -23,24 +23,24 @@ import * as FileSystem from "expo-file-system/legacy";
 import NetInfo from "@react-native-community/netinfo";
 
 import Header from "../../../../src/components/Header";
-import api from "../../../../src/services/api";
-import { useAuth } from "../../../../src/context/AuthContext";
+import api from "../../../../src/core/api/index";
+import { useAuth } from "../../../../src/core/auth/index";
 
-import { upsertSapQueueItem } from "../../../../src/offline/sapQueue";
+import { upsertSapQueueItem } from "../../../../src/apps/mantenimiento/offline/sapQueue";
 import {
   setLocalStatusPatch,
   patchCacheOrdenesTecnicoList,
-} from "../../../../src/offline/ordenesTecnicoLocalPatch";
+} from "../../../../src/apps/mantenimiento/offline/ordenesTecnicoLocalPatch";
 import {
   loadOrdenTecnicoDetail,
   saveOrdenTecnicoDetail,
-} from "../../../../src/offline/ordenesTecnicoCache";
+} from "../../../../src/apps/mantenimiento/offline/ordenesTecnicoCache";
 
 import {
   BLOQUE_TOP,
   SUBCONJUNTOS,
 } from "../../../../src/constants/manttoElevadoresChecklist";
-import { buildPdfHtmlElevadores } from "../../../../src/services/templates/mantenimientoPdfElevadores";
+import { buildPdfHtmlElevadores } from "../../../../src/apps/mantenimiento/templates/mantenimientoPdfElevadores";
 
 // ⚠️ Ruta SAP
 const ORDER_STATUS_URL = () => `/api/odata/ZCS_CHANGE_WORKORDER_SRV/WorkOrderSet`;

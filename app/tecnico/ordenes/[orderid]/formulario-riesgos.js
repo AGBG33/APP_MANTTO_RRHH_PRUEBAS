@@ -22,15 +22,15 @@ import { useLocalSearchParams, router } from "expo-router";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { Dropdown, MultiSelect } from "react-native-element-dropdown";
 import Signature from "react-native-signature-canvas";
-import api from "../../../../src/services/api";
+import api from "../../../../src/core/api/index";
 import {
   fetchEquipmentType,
   getEquipmentTypeFromOrder,
   getTbmkyEquipmentType,
   normalizeEquipmentType,
-} from "../../../../src/services/equipmentType";
-import { useAuth } from "../../../../src/context/AuthContext";
-import { useOrdenesTecnico } from "../../../../src/context/OrdenesTecnicoContext";
+} from "../../../../src/apps/mantenimiento/services/equipmentType";
+import { useAuth } from "../../../../src/core/auth/index";
+import { useOrdenesTecnico } from "../../../../src/apps/mantenimiento/context/OrdenesTecnicoContext";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -48,21 +48,21 @@ import {
 import {
   subirPdfOrden,
   buildTbmkyBulkPayload,
-} from "../../../../src/services/riesgosSap";
-import { buildTbmkyHtml } from "../../../../src/services/templates/tbmkyPdfTemplate";
+} from "../../../../src/apps/mantenimiento/services/riesgosSap";
+import { buildTbmkyHtml } from "../../../../src/apps/mantenimiento/templates/tbmkyPdfTemplate";
 
 // ✅ OFFLINE helpers
-import { isOnline } from "../../../../src/offline/net";
-import { upsertSapQueueItem } from "../../../../src/offline/sapQueue";
+import { isOnline } from "../../../../src/apps/mantenimiento/offline/net";
+import { upsertSapQueueItem } from "../../../../src/apps/mantenimiento/offline/sapQueue";
 import {
   setLocalStatusPatch,
   patchCacheOrdenesTecnicoList,
   patchCacheOrdenTecnicoDetail,
-} from "../../../../src/offline/ordenesTecnicoLocalPatch";
+} from "../../../../src/apps/mantenimiento/offline/ordenesTecnicoLocalPatch";
 import {
   loadOrdenTecnicoDetail,
   saveOrdenTecnicoDetail,
-} from "../../../../src/offline/ordenesTecnicoCache";
+} from "../../../../src/apps/mantenimiento/offline/ordenesTecnicoCache";
 
 // ===== Paleta Fiori / Horizon =====
 const FIORI = {

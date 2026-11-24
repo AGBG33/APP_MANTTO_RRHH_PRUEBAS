@@ -13,9 +13,9 @@ import {
 import MapView, { Marker, PROVIDER_GOOGLE, Callout } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 
-import api from "../../../services/api";
+import api from "../../../core/api/index";
 import Header from "../../../components/Header";
-import { useAuth } from "../../../context/AuthContext";
+import { useAuth } from "../../../core/auth/index";
 
 const BG = "#F4F6F9";
 const SAP_BLUE = "#0A6ED1";

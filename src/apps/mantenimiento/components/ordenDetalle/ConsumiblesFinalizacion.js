@@ -14,11 +14,11 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import NetInfo from "@react-native-community/netinfo";
-import api from "../../../../services/api";
+import api from "../../../../core/api/index";
 import {
   getConsumiblesByPair,
   mergeConsumiblesPair,
-} from "../../../../offline/consumiblesCatalogoCache";
+} from "../../offline/consumiblesCatalogoCache";
 import consumiblesFallback from "./json.json";
 
 /**

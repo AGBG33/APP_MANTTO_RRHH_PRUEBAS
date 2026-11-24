@@ -28,19 +28,19 @@ import * as ImageManipulator from "expo-image-manipulator";
 import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import { buildOfflineWindow } from "../../../offline/ordenesTecnicoCache";
+import { buildOfflineWindow } from "../offline/ordenesTecnicoCache";
 
 import {
   setLocalStatusPatch,
   patchCacheOrdenesTecnicoList,
   patchCacheOrdenTecnicoDetail,
-} from "../../../offline/ordenesTecnicoLocalPatch";
-import { useAuth } from "../../../context/AuthContext";
-import { useOrdenesTecnico } from "../../../context/OrdenesTecnicoContext";
+} from "../offline/ordenesTecnicoLocalPatch";
+import { useAuth } from "../../../core/auth/index";
+import { useOrdenesTecnico } from "../context/OrdenesTecnicoContext";
 import Header from "../../../components/Header";
-import api from "../../../services/api";
+import api from "../../../core/api/index";
 import * as FileSystem from "expo-file-system/legacy";
-import { preloadAvisoAveriaCatalogos } from "../../../services/avisoAveriaSap";
+import { preloadAvisoAveriaCatalogos } from "../services/avisoAveriaSap";
 import { 
   buildWorkOrderBulkId,
 } from "../../../utils/workOrderBulkId";

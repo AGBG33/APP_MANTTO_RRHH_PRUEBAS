@@ -19,12 +19,12 @@ import { router } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import NetInfo from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "../../../context/AuthContext";
-import api from "../../../services/api";
+import { useAuth } from "../../../core/auth/index";
+import api from "../../../core/api/index";
 import {
   saveAveriasListCache,
   loadAveriasListCache,
-} from "../../../offline/averiasCache";
+} from "../offline/averiasCache";
 // Paleta Fiori
 const FIORI = {
   pageBg: "#F7F7F7",

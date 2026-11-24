@@ -23,9 +23,9 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 
 import Header from "../../../../src/components/Header";
-import api from "../../../../src/services/api";
-import { useAuth } from "../../../../src/context/AuthContext";
-import { buildManttoCablesHtml } from "../../../../src/services/templates/mantto_cables/buildManttoCablesHtml";
+import api from "../../../../src/core/api/index";
+import { useAuth } from "../../../../src/core/auth/index";
+import { buildManttoCablesHtml } from "../../../../src/apps/mantenimiento/templates/mantto_cables/buildManttoCablesHtml";
 
 const THEME = {
   bg: "#F4F6F8",

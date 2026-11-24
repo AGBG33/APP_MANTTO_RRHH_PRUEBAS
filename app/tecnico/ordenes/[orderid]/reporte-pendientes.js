@@ -23,9 +23,9 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
-import api from "../../../../src/services/api";
-import { useAuth } from "../../../../src/context/AuthContext";
-import { buildReportePendientesHtml } from "../../../../src/services/templates/reporte_pendientes/buildReportePendientesHtml";
+import api from "../../../../src/core/api/index";
+import { useAuth } from "../../../../src/core/auth/index";
+import { buildReportePendientesHtml } from "../../../../src/apps/mantenimiento/templates/reporte_pendientes/buildReportePendientesHtml";
 
 const UI = {
   bg: "#F4F6F8",

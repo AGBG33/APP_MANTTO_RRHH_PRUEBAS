@@ -22,7 +22,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
-import { buildAutorizacionGastosHtml } from "../../../../src/services/templates/autorizacion_gastos_error_humano/buildAutorizacionGastosHtml";
+import { buildAutorizacionGastosHtml } from "../../../../src/apps/mantenimiento/templates/autorizacion_gastos_error_humano/buildAutorizacionGastosHtml";
 
 const UI = {
   bg: "#F4F6F8",

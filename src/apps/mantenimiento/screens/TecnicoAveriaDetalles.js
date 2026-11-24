@@ -14,11 +14,11 @@ import { Ionicons } from "@expo/vector-icons";
 import NetInfo from "@react-native-community/netinfo";
 
 import Header from "../../../components/Header";
-import api from "../../../services/api";
+import api from "../../../core/api/index";
 import {
   saveAveriaDetailCache,
   loadAveriaDetailCache,
-} from "../../../offline/averiasCache";
+} from "../offline/averiasCache";
 
 const COLORS = {
   pageBg: "#F4F6F9",

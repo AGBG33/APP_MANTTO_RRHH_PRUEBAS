@@ -23,9 +23,9 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 
 import Header from "../../../../src/components/Header";
-import api from "../../../../src/services/api";
-import { useAuth } from "../../../../src/context/AuthContext";
-import { buildManttoFrenoPmPmfHtml } from "../../../../src/services/templates/mantto_freno_pm_pmf/buildManttoFrenoPmPmfHtml";
+import api from "../../../../src/core/api/index";
+import { useAuth } from "../../../../src/core/auth/index";
+import { buildManttoFrenoPmPmfHtml } from "../../../../src/apps/mantenimiento/templates/mantto_freno_pm_pmf/buildManttoFrenoPmPmfHtml";
 
 const UI = {
   bg: "#F4F6F8",

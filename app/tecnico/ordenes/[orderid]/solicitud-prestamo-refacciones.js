@@ -25,7 +25,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
 import Header from "../../../../src/components/Header";
-import { buildSolicitudPrestamoRefaccionesHtml } from "../../../../src/services/templates/solicitud_prestamo_refacciones/buildSolicitudPrestamoRefaccionesHtml";
+import { buildSolicitudPrestamoRefaccionesHtml } from "../../../../src/apps/mantenimiento/templates/solicitud_prestamo_refacciones/buildSolicitudPrestamoRefaccionesHtml";
 
 const UI = {
   bg: "#F4F6F8",

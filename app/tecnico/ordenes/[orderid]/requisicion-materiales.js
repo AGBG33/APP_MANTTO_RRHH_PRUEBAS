@@ -25,8 +25,8 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
 import Header from "../../../../src/components/Header";
-import { useAuth } from "../../../../src/context/AuthContext";
-import { buildRequisicionMaterialesHtml } from "../../../../src/services/templates/requisicion_materiales/buildRequisicionMaterialesHtml";
+import { useAuth } from "../../../../src/core/auth/index";
+import { buildRequisicionMaterialesHtml } from "../../../../src/apps/mantenimiento/templates/requisicion_materiales/buildRequisicionMaterialesHtml";
 
 const UI = {
   bg: "#F4F6F8",

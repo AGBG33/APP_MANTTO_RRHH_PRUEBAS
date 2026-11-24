@@ -12,18 +12,18 @@ import {
 } from "react-native";
 import Header from "../../../components/Header";
 import { useLocalSearchParams, router } from "expo-router";
-import { useAuth } from "../../../context/AuthContext";
+import { useAuth } from "../../../core/auth/index";
 
 import {
   fetchDatosNoMantenimiento,
   guardarCartaNoMantenimiento,
-} from "../../../services/noMantenimiento";
+} from "../services/noMantenimiento";
 
 import {
   setLocalStatusPatch,
   patchCacheOrdenesTecnicoList,
   patchCacheOrdenTecnicoDetail,
-} from "../../../offline/ordenesTecnicoLocalPatch";
+} from "../offline/ordenesTecnicoLocalPatch";
 
 function Row({ label, value }) {
   return (

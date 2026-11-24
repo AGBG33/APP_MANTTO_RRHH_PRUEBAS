@@ -15,13 +15,13 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Header from "../../../components/Header";
-import { useAuth } from "../../../context/AuthContext";
-import api from "../../../services/api";
+import { useAuth } from "../../../core/auth/index";
+import api from "../../../core/api/index";
 
 import {
   loadAveriasListCache,
   saveAveriasListCache,
-} from "../../../offline/averiasCache";
+} from "../offline/averiasCache";
 
 const COLORS = {
   pageBg: "#F4F6F9",

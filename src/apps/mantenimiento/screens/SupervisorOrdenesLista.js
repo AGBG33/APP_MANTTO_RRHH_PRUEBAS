@@ -25,13 +25,13 @@ import Header from "../../../components/Header";
 import { router } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-import { isOnline } from "../../../offline/net";
-import { fetchOrdenesSupervisor } from "../../../services/ordenesSupervisor";
+import { isOnline } from "../offline/net";
+import { fetchOrdenesSupervisor } from "../services/ordenesSupervisor";
 import {
   fetchOrdenDetalleSupervisor,
   fetchOperacionesSupervisor,
-} from "../../../services/operacionesSupervisor";
-import api from "../../../services/api";
+} from "../services/operacionesSupervisor";
+import api from "../../../core/api/index";
 
 /* ====================== Helpers de fecha UI ====================== */
 const atStartOfDay = (d) => {

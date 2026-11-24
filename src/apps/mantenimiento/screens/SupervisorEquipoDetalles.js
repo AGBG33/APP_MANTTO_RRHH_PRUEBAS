@@ -13,8 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
 
 import Header from "../../../components/Header";
-import api from "../../../services/api";
-import { useAuth } from "../../../context/AuthContext";
+import api from "../../../core/api/index";
+import { useAuth } from "../../../core/auth/index";
 
 const BG = "#F7F7F7";
 const CARD = "#FFFFFF";

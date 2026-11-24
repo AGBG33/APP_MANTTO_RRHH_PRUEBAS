@@ -18,9 +18,9 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useLocalSearchParams, router } from "expo-router";
 import Header from "../../../components/Header";
-import { useAuth } from "../../../context/AuthContext";
-import { useOrdenesTecnico } from "../../../context/OrdenesTecnicoContext";
-import { loadOrdenTecnicoDetail } from "../../../offline/ordenesTecnicoCache";
+import { useAuth } from "../../../core/auth/index";
+import { useOrdenesTecnico } from "../context/OrdenesTecnicoContext";
+import { loadOrdenTecnicoDetail } from "../offline/ordenesTecnicoCache";
 /* ===================== Paleta ===================== */
 const FIORI = {
   pageBg: "#F7F7F7",

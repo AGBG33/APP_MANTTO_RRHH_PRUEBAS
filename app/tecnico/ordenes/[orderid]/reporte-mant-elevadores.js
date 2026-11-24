@@ -17,9 +17,9 @@ import Header from '../../../../src/components/Header';
 import { useLocalSearchParams, router } from 'expo-router';
 
 import FloorSelectModal from '../../../../src/components/FloorSelectModal';
-import { generarYCompartirPdf } from "../../../../src/services/pdf";
-import { subirPdfMantElevadoresASap } from "../../../../src/services/mantenimientoPdfSap";
-import { fetchDatosMantenimiento, guardarMantElevadores } from '../../../../src/services/mantenimiento';
+import { generarYCompartirPdf } from "../../../../src/apps/mantenimiento/services/pdf";
+import { subirPdfMantElevadoresASap } from "../../../../src/apps/mantenimiento/services/mantenimientoPdfSap";
+import { fetchDatosMantenimiento, guardarMantElevadores } from '../../../../src/apps/mantenimiento/services/mantenimiento';
 
 
 // ✅ PDF / Firma

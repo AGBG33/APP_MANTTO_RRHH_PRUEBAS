@@ -20,16 +20,16 @@ import * as LegacyFS from "expo-file-system/legacy";
 
 import Header from "../../../../src/components/Header";
 import { useLocalSearchParams, router } from "expo-router";
-import { useAuth } from "../../../../src/context/AuthContext";
+import { useAuth } from "../../../../src/core/auth/index";
 import NetInfo from "@react-native-community/netinfo";
 
 import {
   fetchMetaAviso,
   fetchCatalogoCircunstancia,
   crearAvisoAveriaSap,
-} from "../../../../src/services/avisoAveriaSap";
+} from "../../../../src/apps/mantenimiento/services/avisoAveriaSap";
 
-import { enqueueCrearAvisoAveria } from "../../../../src/offline/avisoAveriaOutbox";
+import { enqueueCrearAvisoAveria } from "../../../../src/apps/mantenimiento/offline/avisoAveriaOutbox";
 
 const FIORI = {
   bg: "#F5F7FB",

@@ -16,7 +16,7 @@ import Header from "../../../components/Header";
 import {
   fetchOrdenDetalleSupervisor,
   fetchOperacionesSupervisor,
-} from "../../../services/operacionesSupervisor";
+} from "../services/operacionesSupervisor";
 
 const COLORS = {
   pageBg: "#F4F6F9",

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import { useAuth } from '../../../context/AuthContext';
+import { useAuth } from '../../../core/auth/index';
 import Header from '../../../components/Header';
-import api from '../../../services/api';
+import api from '../../../core/api/index';
 import { router } from 'expo-router';
 
 export default function ListaOrdenesAdmin() {

@@ -7,10 +7,10 @@ import NetInfo from "@react-native-community/netinfo";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "@react-navigation/native";
 import Header from "../../../components/Header";
-import api from "../../../services/api";
+import api from "../../../core/api/index";
 import { router } from "expo-router";
-import { useAuth } from "../../../context/AuthContext";
-import { useOrdenesTecnico } from "../../../context/OrdenesTecnicoContext";
+import { useAuth } from "../../../core/auth/index";
+import { useOrdenesTecnico } from "../context/OrdenesTecnicoContext";
 import { Ionicons } from "@expo/vector-icons";
 import Signature from "react-native-signature-canvas";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -20,18 +20,18 @@ import * as Sharing from "expo-sharing";
 
 import {
   buildOfflineWindow, loadOrdenTecnicoDetail, loadOrdenesTecnicoList,
-} from "../../../offline/ordenesTecnicoCache";
+} from "../offline/ordenesTecnicoCache";
 import {
   getLocalStatusPatch, setLocalStatusPatch, applyStatusPatchToOrdenes,
-} from "../../../offline/ordenesTecnicoLocalPatch";
-import { upsertSapQueueItem, processSapQueue } from "../../../offline/sapQueue";
-import { buildMantenimientoHtml } from "../../../services/templates/buildMantenimientoHtml";
-import { addPageNumbersToPdfBase64 } from "../../../services/pdf/addPageNumbersToPdf";
+} from "../offline/ordenesTecnicoLocalPatch";
+import { upsertSapQueueItem, processSapQueue } from "../offline/sapQueue";
+import { buildMantenimientoHtml } from "../templates/buildMantenimientoHtml";
+import { addPageNumbersToPdfBase64 } from "../pdf/addPageNumbersToPdf";
 import {
   fetchEquipmentType,
   getEquipmentTypeFromOrder,
   normalizeEquipmentType,
-} from "../../../services/equipmentType";
+} from "../services/equipmentType";
 
 import {
   buildWorkOrderBulkId,

@@ -11,8 +11,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Header from '../../../components/Header';
-import { useAuth } from '../../../context/AuthContext';
-import api from '../../../services/api';
+import { useAuth } from '../../../core/auth/index';
+import api from '../../../core/api/index';
 
 const BG = '#F4F6F9';
 const SAP_BLUE = '#0A6ED1';
