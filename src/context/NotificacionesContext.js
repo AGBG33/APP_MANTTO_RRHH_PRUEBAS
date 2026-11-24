@@ -1,6 +1,6 @@
 // src/context/NotificacionesContext.js
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import api from '../services/api';
+import api from '../core/api/index';
 import { useAuth } from '../core/auth/index';
 
 const NotificacionesContext = createContext();

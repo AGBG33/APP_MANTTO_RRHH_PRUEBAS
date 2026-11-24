@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useAuth } from "../src/core/auth/index";
-import { API_URL } from "../src/services/api";
+import { API_URL } from "../src/core/api/index";
 
 export default function AuthCallbackScreen() {
   const params = useLocalSearchParams();

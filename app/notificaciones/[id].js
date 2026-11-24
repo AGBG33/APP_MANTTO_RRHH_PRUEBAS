@@ -15,7 +15,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import Header from '../../src/components/Header';
 import { useNotificaciones } from '../../src/context/NotificacionesContext';
 import { useAuth } from '../../src/core/auth/index';
-import api from '../../src/services/api'; // 👈 asumo que ya lo usas en tu app
+import api from '../../src/core/api/index'; // 👈 asumo que ya lo usas en tu app
 
 const FIORI = {
   pageBg: '#F7F7F7',

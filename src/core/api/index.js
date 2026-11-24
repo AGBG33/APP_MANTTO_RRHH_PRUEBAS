@@ -10,4 +10,4 @@
 export {
   default,
   API_URL,
-} from "../../services/api";
+} from "./api";

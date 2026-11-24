@@ -2,7 +2,7 @@
 import axios from "axios";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { isOnline } from "../offline/net";
+import { isOnline } from "../../offline/net";
 
 const extra = Constants.expoConfig?.extra || {};
 

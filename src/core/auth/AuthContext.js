@@ -10,7 +10,7 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 import { router } from "expo-router";
-import api from "../../services/api";
+import api from "../api/index";
 
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
