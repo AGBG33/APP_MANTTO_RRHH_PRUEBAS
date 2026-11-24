@@ -16,15 +16,15 @@ import {
 
 import {
   leerHistorialRHCache,
-} from "../../../rrhh/offline/rhOfflineDb";
+} from "../offline/rhOfflineDb";
 
 import {
   listarMarcacionesPendientesRH,
-} from "../../../rrhh/offline/rhPendingDb";
+} from "../offline/rhPendingDb";
 
 import {
   leerCuartoRetardoRH,
-} from "../../../rrhh/offline/rhDelaysCache";
+} from "../offline/rhDelaysCache";
 
 import {
   crearPlanRecordatoriosRH,
