@@ -20,13 +20,6 @@ const TEXT_SECONDARY = '#6A7381';
 
 const ADMIN_TILES = [
   {
-    key: 'notificaciones',
-    title: 'Notificaciones',
-    icon: 'notifications-outline',
-    onPress: () => router.push('/notificaciones'),
-    badge: 4, // si no quieres badge, bórralo
-  },
-  {
     key: 'ordenes',
     title: 'Órdenes de servicio',
     icon: 'document-text-outline',
