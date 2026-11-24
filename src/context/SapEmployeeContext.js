@@ -6,7 +6,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import NetInfo from "@react-native-community/netinfo";
 import { useAuth } from "./AuthContext";
-import { obtenerEmpleadoRH } from "../services/rhEmployees";
+import { obtenerEmpleadoRH } from "../core/employee/employeeService";
 import { guardarPerfilRHCache, leerPerfilRHCachePorCorreo,
   guardarHistorialRHCache, leerHistorialRHCache,
   iniciarConsultaHistorialRH } from "../rrhh/offline/rhOfflineDb";
