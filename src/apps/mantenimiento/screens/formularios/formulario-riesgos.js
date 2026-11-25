@@ -89,6 +89,28 @@ const TBMKY_JSON_KEY = (orderId) =>
 const TBMKY_STATUS_KEY = (orderId) =>
   `tbmky_status_${String(orderId || "").trim()}`;
 
+// La cola SAP ya sabe leer referencias a archivos locales cuando vuelve la red.
+const TBMK_QUEUE_FILES_FOLDER = 'sap_queue_files/';
+async function prepararPdfLocalParaCola(uriPdf, orderId) {
+  if (!FileSystem.documentDirectory) throw Error('No hay almacenamiento local para el TBMK.');
+  const info = await FileSystem.getInfoAsync(uriPdf);
+  if (!info.exists || (typeof info.size === 'number' && info.size < 200)) {
+    throw Error('No se encontró un PDF del TBMK completo.');
+  }
+  const carpeta = FileSystem.documentDirectory + TBMK_QUEUE_FILES_FOLDER;
+  const carpetaInfo = await FileSystem.getInfoAsync(carpeta);
+  if (!carpetaInfo.exists) await FileSystem.makeDirectoryAsync(carpeta, { intermediates: true });
+  const safeId = String(orderId || 'orden').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const destino = carpeta + 'tbmky_' + safeId + '_' + Date.now() + '_' +
+    Math.random().toString(16).slice(2) + '.pdf';
+  await FileSystem.copyAsync({ from: uriPdf, to: destino });
+  const copia = await FileSystem.getInfoAsync(destino);
+  if (!copia.exists || (typeof copia.size === 'number' && copia.size < 200)) {
+    throw Error('No se pudo conservar el PDF para sincronizar offline.');
+  }
+  return { __sapQueueLocalFileV1: true, uri: destino, dataUrlPrefix: '', createdAt: Date.now() };
+}
+
 const MAX_AUXILIARES = 5;
 
 // ===== Listas locales =====
@@ -1543,41 +1565,29 @@ export default function FormularioRiesgosScreen() {
     return b64;
   };
 
-  const generarPdfLocalYBase64 = async (payload) => {
+  // PDF se guarda en archivo; solamente se convierte a Base64 al enviarse online.
+  const generarPdfLocal = async (payload) => {
     const html = buildTbmkyHtml(payload);
-
-    const safeFecha = String(payload.fecha || "").replace(/[^0-9-]/g, "");
-    const fileName = `TBMKY_${payload.orderid}_${safeFecha}.pdf`;
-
-    const { uri, base64 } = await Print.printToFileAsync({
-      html,
-      base64: true,
-    });
-
-    const dest = `${FileSystem.documentDirectory}${fileName}`;
-
+    const safeFecha = String(payload.fecha || '').replace(/[^0-9-]/g, '');
+    const fileName = 'TBMKY_' + payload.orderid + '_' + safeFecha + '.pdf';
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    if (!uri) throw Error('No se pudo generar el archivo PDF del TBMK.');
+    const dest = (FileSystem.documentDirectory || '') + fileName;
     let finalUri = uri;
-
-    try {
-      await FileSystem.copyAsync({
-        from: uri,
-        to: dest,
-      });
-
-      finalUri = dest;
-    } catch {}
-
-    let finalBase64 = base64;
-
-    if (!finalBase64) {
-      finalBase64 = await leerPdfBase64(finalUri);
+    if (FileSystem.documentDirectory && uri !== dest) {
+      try {
+        await FileSystem.copyAsync({ from: uri, to: dest });
+        finalUri = dest;
+        await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+      } catch (error) {
+        console.warn('[TBMKY][PDF] Se conserva el temporal:', error?.message);
+      }
     }
-
-    return {
-      uri: finalUri,
-      base64: finalBase64,
-      fileName,
-    };
+    const info = await FileSystem.getInfoAsync(finalUri);
+    if (!info.exists || (typeof info.size === 'number' && info.size < 200)) {
+      throw Error('No se generó correctamente el PDF del TBMK.');
+    }
+    return { uri: finalUri, fileName };
   };
 
   const openPdfModal = () => setShowPdfModal(true);
@@ -1790,6 +1800,17 @@ export default function FormularioRiesgosScreen() {
           return t.nombre || t.cargo || t.nomina;
         });
 
+      // Los auxiliares con nombre o cargo capturados requieren nombre y nómina.
+      // Una nómina Z2 precargada sin datos capturados no bloquea el envío.
+      const auxiliaresIncompletos = trabajadoresFinal.slice(1).filter(
+        t => (t.nombre || t.cargo) && (!t.nombre || !t.nomina),
+      );
+      if (auxiliaresIncompletos.length) {
+        Alert.alert('Auxiliares incompletos',
+          'Cada auxiliar capturado debe tener nombre y número de nómina antes de enviar el TBMK.');
+        return;
+      }
+
       const payload = {
         orderid: orden?.Orderid || orden?.orderid || orderid,
         fecha,
@@ -1843,17 +1864,8 @@ export default function FormularioRiesgosScreen() {
       };
 
       // 1) Generar PDF
-      const {
-        uri: localUri,
-        base64: base64Pdf,
-        fileName,
-      } = await generarPdfLocalYBase64(payload);
-
+      const { uri: localUri, fileName } = await generarPdfLocal(payload);
       setPdfLocalUri(localUri);
-
-      if (!base64Pdf || String(base64Pdf).trim().length < 200) {
-        throw new Error("Base64 del PDF vacío o demasiado corto.");
-      }
 
       // 2) OFFLINE/ONLINE
       const online = await isOnline();
@@ -1897,10 +1909,12 @@ export default function FormularioRiesgosScreen() {
           console.log("[TBMKY] error patch local offline:", e);
         }
 
+        const pdfLocalRef = await prepararPdfLocalParaCola(localUri, payload.orderid);
         const tbmkyBulkPayload = buildTbmkyBulkPayload({
           orderId: payload.orderid,
-          pdfBase64: String(base64Pdf).trim(),
+          pdfLocalRef,
           fileName,
+          trabajadores: payload.trabajadores,
         });
 
         await upsertSapQueueItem({
@@ -1944,10 +1958,15 @@ export default function FormularioRiesgosScreen() {
           throw new Error("Token inválido");
         }
 
+        const base64Pdf = await leerPdfBase64(localUri);
+        if (!base64Pdf || base64Pdf.length < 200) {
+          throw new Error('No se pudo leer el PDF para enviarlo a SAP.');
+        }
         respSubmit = await subirPdfOrden({
           orderId: payload.orderid,
-          pdfBase64: String(base64Pdf).trim(),
+          pdfBase64: base64Pdf,
           fileName,
+          trabajadores: payload.trabajadores,
         });
       } catch (sendErr) {
         console.log(
