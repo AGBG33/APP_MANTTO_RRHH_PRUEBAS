@@ -16,10 +16,21 @@
  import RHOfflineSyncAgent from '../src/apps/rrhh/components/RHOfflineSyncAgent';
  import RHDelaysPreloadAgent from '../src/apps/rrhh/components/RHDelaysPreloadAgent';
  import RHReminderAgent from '../src/apps/rrhh/components/RHReminderAgent';
+import { SapModuleAccessProvider, useSapModuleAccess } from "../src/shell/modules/SapModuleAccessContext";
 
  SplashScreen.preventAutoHideAsync();
 
- export default function RootLayout() {
+ function AuthorizedRHAgents() {
+  const { loading, moduleCodes } = useSapModuleAccess();
+  if (loading || !moduleCodes.includes("Z002")) return null;
+  return <>
+    <RHOfflineSyncAgent />
+    <RHDelaysPreloadAgent />
+    <RHReminderAgent />
+  </>;
+}
+
+export default function RootLayout() {
    const [appReady, setAppReady] = useState(false);
    const [showAnimatedSplash, setShowAnimatedSplash] = useState(true);
 
@@ -44,9 +55,9 @@
      <OfflineProvider>
        <AuthProvider>
          <SapEmployeeProvider>
-           <RHOfflineSyncAgent/>
-           <RHDelaysPreloadAgent/>
-           <RHReminderAgent/>
+          <SapModuleAccessProvider>
+
+            <AuthorizedRHAgents />
            <OrdenesTecnicoProvider>
              <UbicacionProvider>
                <DrawerProvider>
@@ -59,7 +70,8 @@
                </DrawerProvider>
              </UbicacionProvider>
            </OrdenesTecnicoProvider>
-         </SapEmployeeProvider>
+                   </SapModuleAccessProvider>
+        </SapEmployeeProvider>
        </AuthProvider>
      </OfflineProvider>
    </SafeAreaProvider>;

@@ -3,6 +3,7 @@
 import React, { useCallback } from "react";
 import {
   View,
+  Alert,
   Text,
   Pressable,
   StyleSheet,
@@ -22,6 +23,8 @@ export default function InicioModulos() {
     isAuthenticated,
     can,
     mantenimientoRoute,
+    moduleError,
+    refreshModules,
   } = usePermissions();
 
   useFocusEffect(
@@ -58,10 +61,11 @@ export default function InicioModulos() {
           Elige el apartado en el que deseas trabajar.
         </Text>
 
-        {can(PERMISSIONS.MANTENIMIENTO.ACCEDER) &&
-          mantenimientoRoute && (
+        {can(PERMISSIONS.MANTENIMIENTO.ACCEDER) && (
             <Pressable
-              onPress={() => router.push(mantenimientoRoute)}
+              onPress={() => mantenimientoRoute
+                ? router.push(mantenimientoRoute)
+                : Alert.alert("Mantenimiento", "SAP autorizo este modulo, pero tu puesto aun no tiene una pantalla de Mantenimiento configurada.")}
               style={({ pressed }) => [
                 styles.card,
                 pressed && styles.pressed,
@@ -128,6 +132,17 @@ export default function InicioModulos() {
               color="#64748B"
             />
           </Pressable>
+        )}
+
+        {!can(PERMISSIONS.MANTENIMIENTO.ACCEDER) && !can(PERMISSIONS.RRHH.ACCEDER) && (
+          <View style={{ padding: 18, backgroundColor: "#FFFFFF", borderRadius: 12 }}>
+            <Text style={{ color: "#0B1F3B", lineHeight: 21 }}>
+              {moduleError || "Tu area y puesto no tienen modulos asignados en SAP."}
+            </Text>
+            <Pressable onPress={refreshModules} style={{ marginTop: 14 }}>
+              <Text style={{ color: "#0B1F3B", fontWeight: "700" }}>Reintentar consulta</Text>
+            </Pressable>
+          </View>
         )}
       </View>
     </View>
