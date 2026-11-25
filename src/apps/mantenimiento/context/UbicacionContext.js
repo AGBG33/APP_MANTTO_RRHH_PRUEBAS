@@ -9,7 +9,7 @@ import { useAuth } from "../../../core/auth";
 import api from "../../../core/api";
 // ✅ Offline
 import { isOnline } from "../../../core/offline/net";
-import { outboxAdd } from "../offline/db";
+import { outboxAdd } from "../../../core/offline/db";
 const UbicacionContext = createContext();
 const msToSapDate = (ms) => `/Date(${ms})/`;
 const SEND_EVERY_MS = 30000;

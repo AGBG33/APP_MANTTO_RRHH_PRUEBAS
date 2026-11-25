@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getDb } from "./db";
+import { getDb } from "../../../core/offline/db";
 
 const MB = 1024 * 1024;
 

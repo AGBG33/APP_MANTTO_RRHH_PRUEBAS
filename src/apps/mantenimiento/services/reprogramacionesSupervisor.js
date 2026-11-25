@@ -1,7 +1,7 @@
 // src/services/reprogramacionesSupervisor.js
 import api from "../../../core/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { cacheGet, cacheSet } from "../offline/db";
+import { cacheGet, cacheSet } from "../../../core/offline/db";
 import { isOnline } from "../../../core/offline/net";
 
 /* ======================

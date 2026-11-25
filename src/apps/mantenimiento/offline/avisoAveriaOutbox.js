@@ -1,5 +1,5 @@
 // src/offline/avisoAveriaOutbox.js
-import { outboxAdd } from "./db";
+import { outboxAdd } from "../../../core/offline/db";
 
 function uid() {
   return `${Date.now()}_${Math.random().toString(16).slice(2)}`;

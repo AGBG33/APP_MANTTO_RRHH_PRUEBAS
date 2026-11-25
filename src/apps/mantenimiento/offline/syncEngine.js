@@ -1,5 +1,5 @@
 // src/offline/syncEngine.js
-import { outboxList, outboxMarkSending, outboxMarkSent, outboxMarkError, outboxDeleteSent } from "./db";
+import { outboxList, outboxMarkSending, outboxMarkSent, outboxMarkError, outboxDeleteSent } from "../../../core/offline/db";
 import { isOnline } from "../../../core/offline/net";
 
 // apiInstance = tu axios (src/services/api)

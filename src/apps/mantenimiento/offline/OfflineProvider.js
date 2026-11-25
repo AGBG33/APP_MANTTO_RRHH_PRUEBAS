@@ -9,7 +9,7 @@ import React, {
   useCallback,
 } from "react";
 
-import { initDb, outboxReplaceRequestUrl } from "./db";
+import { initDb, outboxReplaceRequestUrl } from "../../../core/offline/db";
 import { logStorageDiagnostics } from "./storageDiagnostics";
 import { subscribeOnline } from "../../../core/offline/net";
 import { runOutboxSync } from "./syncEngine";
