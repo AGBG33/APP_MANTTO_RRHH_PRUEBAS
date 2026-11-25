@@ -15,7 +15,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
 
 import Header from "../../../components/Header";
-import api from "../../../core/api/index";
+import { fetchOrdenesSupervisor } from "../services/ordenesSupervisor";
+import { isOnline } from "../../../core/offline/net";
 import { useAuth } from "../../../core/auth/index";
 
 const COLORS = {
@@ -29,19 +30,25 @@ const COLORS = {
 
 const ESTATUS_CARTA_NO_MANTTO = "0600";
 const ESTATUS_CARTA_NO_MANTTO_LABEL = "Carta No Mantto";
+const MESES_CARTA=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const mesActualCarta=()=>{const d=new Date();return {year:d.getFullYear(),month:d.getMonth()}};
+const moverMesCarta=(p,n)=>{const d=new Date(p.year,p.month+n,1);return {year:d.getFullYear(),month:d.getMonth()}};
+const rangoMesCarta=(p)=>{
+  const ymd=(day)=>[p.year,String(p.month+1).padStart(2,"0"),String(day).padStart(2,"0")].join("-");
+  return {desde:ymd(1),hasta:ymd(new Date(p.year,p.month+1,0).getDate())};
+};
 
 const safeStr = (v) => (v == null ? "" : String(v));
 
 const parseSapDate = (v) => {
-  if (!v) return null;
-
-  const m = String(v).match(/\/Date\((\-?\d+)\)\//);
-  if (!m) return null;
-
-  const ms = Number(m[1]);
-  if (!Number.isFinite(ms)) return null;
-
-  return new Date(ms);
+  if (v == null || v === "") return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  if (typeof v === "number") return Number.isFinite(v) ? new Date(v) : null;
+  const s=String(v).trim();
+  const match=s.match(/\/Date\((-?\d+)(?:[+-]\d{4})?\)\//);
+  if (match) return new Date(Number(match[1]));
+  if (/^\d{8}$/.test(s)) return new Date(Number(s.slice(0,4)),Number(s.slice(4,6))-1,Number(s.slice(6,8)));
+  const d=new Date(s);return Number.isNaN(d.getTime()) ? null : d;
 };
 
 function normalizeCode(code) {
@@ -96,118 +103,49 @@ export default function NoMantenimientoIndex() {
   }, [user]);
 
   const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState([]);
+  const [allRows,setAllRows]=useState([]);
+  const [periodo,setPeriodo]=useState(mesActualCarta);
+  const [offline,setOffline]=useState(false);
+  const [errorMessage,setErrorMessage]=useState("");
   const [q, setQ] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
   const params = useLocalSearchParams();
   const { refresh } = params;
 
+  // La busqueda de texto NO dispara peticiones de red.
   const fetchLista = useCallback(async () => {
+    if(!correo){setAllRows([]);setErrorMessage("No se detecto el correo del usuario.");setLoading(false);return;}
+    setLoading(true);setErrorMessage("");
     try {
-      if (!correo) {
-        setRows([]);
-        setLoading(false);
+      const {desde,hasta}=rangoMesCarta(periodo);
+      const online=await isOnline();setOffline(!online);
+      const response=await fetchOrdenesSupervisor(desde,hasta,"range");
+      const todas=Array.isArray(response) ? response : Array.isArray(response?.d?.results) ? response.d.results : Array.isArray(response?.results) ? response.results : [];
+      const cartas=todas.filter(it=>isCartaNoManttoByUserstatus(
+        it?.userstatus??it?.Userstatus??it?.UserStatus,
+        it?.estatus_code??it?.EstatusCode??it?.StatusCode??it?.Status,
+      ));
+      setAllRows(cartas);
+      console.log("[CARTA_NO_MANTTO] Mes",{desde,hasta,total:todas.length,cartas:cartas.length});
+    }catch(error){
+      console.warn("[CARTA_NO_MANTTO] Error",error?.message||error);
+      setErrorMessage("No fue posible cargar este periodo.");setAllRows([]);
+    }finally{setLoading(false);}
+  },[correo,periodo.year,periodo.month]);
 
-        Alert.alert(
-          "Sin correo",
-          "No se detectó el correo del usuario loggeado.",
-        );
-
-        return;
-      }
-
-      setLoading(true);
-
-      // Rango anual ajustable.
-      const from = "2026-01-01T00:00:00";
-      const to = "2026-12-31T23:59:59";
-
-      /**
-       * Se conserva este filtro porque así estaba tu consulta actual.
-       * Después filtramos localmente solo las órdenes con estatus 0600.
-       */
-      const filter =
-        `StartDate ge datetime'${from}' and ` +
-        `FinishDate le datetime'${to}' and ` +
-        `Userstatus eq '${correo}'`;
-
-      const url =
-        `/api/odata/ZCS_GET_WORKORDER_SRV/WorkOrderHeaderSet` +
-        `?$filter=${encodeURIComponent(filter)}` +
-        `&$format=json`;
-
-      console.log("[CARTA_NO_MANTTO] correo loggeado =>", correo);
-      console.log(
-        "[CARTA_NO_MANTTO] ODATA URL =>",
-        `${api.defaults.baseURL}${url}`,
-      );
-
-      const { data } = await api.get(url);
-      const results = Array.isArray(data?.d?.results) ? data.d.results : [];
-
-      const filtradas = results.filter((it) => {
-        const us = it?.Userstatus || it?.UserStatus || "";
-        const estatusCode =
-          it?.estatus_code ||
-          it?.EstatusCode ||
-          it?.StatusCode ||
-          it?.Status ||
-          "";
-
-        return isCartaNoManttoByUserstatus(us, estatusCode);
-      });
-
-      const s = q.trim().toLowerCase();
-
-      const buscadas = !s
-        ? filtradas
-        : filtradas.filter((it) => {
-            const order = safeStr(
-              it?.Orderid || it?.OrderId || it?.OrderID,
-            ).toLowerCase();
-
-            const equip = safeStr(
-              it?.Equipment || it?.Equipo,
-            ).toLowerCase();
-
-            const text = safeStr(
-              it?.ShortText || it?.Description || it?.Descripcion,
-            ).toLowerCase();
-
-            return (
-              order.includes(s) ||
-              equip.includes(s) ||
-              text.includes(s) ||
-              ESTATUS_CARTA_NO_MANTTO_LABEL.toLowerCase().includes(s)
-            );
-          });
-
-      setRows(buscadas);
-    } catch (e) {
-      console.error(
-        "Error lista Carta No Mantto (ODATA):",
-        e?.response?.data || e?.message,
-      );
-
-      setRows([]);
-
-      Alert.alert(
-        "Error",
-        "No se pudo cargar la lista de Carta No Mantto. Revisa la consola.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [q, correo]);
+  const rows=useMemo(()=>{
+    const qNorm=q.trim().toLowerCase();
+    if(!qNorm)return allRows;
+    return allRows.filter(it=>[
+      it?.orderid,it?.Orderid,it?.OrderId,it?.equipment,it?.Equipment,
+      it?.nombre_orden,it?.ShortText,it?.Description,ESTATUS_CARTA_NO_MANTTO_LABEL,
+    ].map(safeStr).join(" ").toLowerCase().includes(qNorm));
+  },[allRows,q]);
 
   useEffect(() => {
     fetchLista();
-  }, [fetchLista]);
-
-  useEffect(() => {
-    if (refresh) fetchLista();
-  }, [refresh, fetchLista]);
+  }, [fetchLista, refresh]);
 
   const onPullRefresh = async () => {
     try {
@@ -220,7 +158,7 @@ export default function NoMantenimientoIndex() {
 
   const openDetalle = (item) => {
     const orderId = safeStr(
-      item?.Orderid || item?.OrderId || item?.OrderID,
+      item?.orderid || item?.Orderid || item?.OrderId || item?.OrderID,
     ).trim();
 
     if (!orderId) {
@@ -237,9 +175,9 @@ export default function NoMantenimientoIndex() {
   };
 
   const renderItem = ({ item }) => {
-    const orderId = safeStr(item?.Orderid || item?.OrderId || item?.OrderID);
-    const startDate = formatDateTime(item?.StartDate);
-    const finishDate = formatDateTime(item?.FinishDate);
+    const orderId = safeStr(item?.orderid || item?.Orderid || item?.OrderId || item?.OrderID);
+    const startDate = formatDateTime(item?.startdate ?? item?.StartDate);
+    const finishDate = formatDateTime(item?.finishdate ?? item?.FinishDate);
 
     return (
       <TouchableOpacity
@@ -257,13 +195,13 @@ export default function NoMantenimientoIndex() {
 
         <Text style={styles.line}>
           <Text style={styles.label}>Equipo: </Text>
-          {safeStr(item?.Equipment || item?.Equipo || "—")}
+          {safeStr(item?.equipment || item?.Equipment || item?.Equipo || "—")}
         </Text>
 
         <Text style={styles.line}>
           <Text style={styles.label}>Texto: </Text>
           {safeStr(
-            item?.ShortText || item?.Description || item?.Descripcion || "—",
+            item?.nombre_orden || item?.ShortText || item?.Description || item?.Descripcion || "—",
           )}
         </Text>
 
@@ -307,20 +245,40 @@ export default function NoMantenimientoIndex() {
             placeholder="Buscar por orden, equipo o texto..."
             placeholderTextColor="#8A96A3"
             style={styles.searchInput}
-            onSubmitEditing={fetchLista}
             returnKeyType="search"
             autoCapitalize="none"
           />
 
           <TouchableOpacity
-            onPress={fetchLista}
+            onPress={onPullRefresh}
             style={styles.searchBtn}
             disabled={!correo}
             activeOpacity={0.85}
           >
-            <Ionicons name="arrow-forward" size={18} color="#FFF" />
+            <Ionicons name="refresh" size={18} color="#FFF" />
           </TouchableOpacity>
         </View>
+
+        <View style={{ flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:8,paddingVertical:12,marginTop:10,backgroundColor:"#FFFFFF",borderRadius:12,borderWidth:1,borderColor:COLORS.border }}>
+          <TouchableOpacity accessibilityLabel="Mes anterior" onPress={()=>setPeriodo(prev=>moverMesCarta(prev,-1))} style={{padding:8}}>
+            <Ionicons name="chevron-back" size={23} color={COLORS.accent}/>
+          </TouchableOpacity>
+          <View style={{alignItems:"center"}}>
+            <Text style={{color:COLORS.text,fontSize:11}}>Periodo de órdenes</Text>
+            <Text style={{color:COLORS.title,fontWeight:"800"}}>{MESES_CARTA[periodo.month]} {periodo.year}</Text>
+          </View>
+          <TouchableOpacity accessibilityLabel="Mes siguiente" onPress={()=>setPeriodo(prev=>moverMesCarta(prev,1))} style={{padding:8}}>
+            <Ionicons name="chevron-forward" size={23} color={COLORS.accent}/>
+          </TouchableOpacity>
+        </View>
+        <View style={{flexDirection:"row",justifyContent:"space-between",paddingVertical:9}}>
+          <Text style={{color:COLORS.text}}>{allRows.length} cartas{q.trim() ? " · " + rows.length + " coincidencias" : ""}</Text>
+          <TouchableOpacity onPress={()=>setPeriodo(mesActualCarta())}>
+            <Text style={{color:COLORS.accent,fontWeight:"700"}}>Mes actual</Text>
+          </TouchableOpacity>
+        </View>
+        {offline ? <Text style={{color:COLORS.text,paddingBottom:8}}>Sin conexión: datos guardados del mes, si existen.</Text> : null}
+        {errorMessage ? <Text style={{color:"#C0392B",paddingBottom:8}}>{errorMessage}</Text> : null}
 
         {!correo ? (
           <Text style={styles.emptyText}>
@@ -337,7 +295,7 @@ export default function NoMantenimientoIndex() {
           <FlatList
             data={rows}
             keyExtractor={(it, idx) =>
-              safeStr(it?.Orderid || it?.OrderId || it?.OrderID || idx)
+              safeStr(it?.orderid || it?.Orderid || it?.OrderId || it?.OrderID || idx)
             }
             renderItem={renderItem}
             contentContainerStyle={{ paddingBottom: 90 }}

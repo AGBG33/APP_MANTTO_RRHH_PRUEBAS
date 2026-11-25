@@ -1586,24 +1586,53 @@ export default function PendienteFirmaIndex() {
                     elapsedMs: pending?.orderElapsedMs ?? Math.max(0, pending?.orderFinishedAtMs - pending?.orderStartedAtMs),
                   });
 
+                  // Primero se genera el PDF en disco; todavia no se guarda Base64.
                   const pdfResult = await generateMaintenancePdfFile({
                     html,
-                    incluirBase64: true, // Etapa 3B.1: preservar el envio actual a SAP.
+                    incluirBase64: false,
                   });
                   const fileName = buildShortPdfFileName({ tipo, orderId });
 
                   tempPdfsByOrder[orderId] = { orderId, tempUri: pdfResult.uri, fileName, clienteEmail: email, clienteNombre: nombre, clienteCargo: cargo, comentarioCliente: comentario };
-                  if (!pdfResult.base64) throw new Error("El PDF se generó vacío.");
+                  if (!pdfResult?.uri) throw new Error("El PDF no se genero correctamente.");
 
                   toWorkOrders.push({
                     OrderId: orderId, WorkOrderHeader: { Orderid: orderId, Email: email },
                     WorkOrderUserStatusSet: [{ UserStText: "0300", Langu: "ES", Inactive: "" }, { UserStText: "0400", Langu: "ES", Inactive: "X" }],
-                    Attachments: [{ DocId: orderId, FileName: fileName, MimeType: "application/pdf", Base64: pdfResult.base64 }],
+                    Attachments: [{ DocId: orderId, FileName: fileName, MimeType: "application/pdf", Base64: "" }],
                   });
                   setSendProgress((p) => ({ ...p, done: p.done + 1, current: `PDF listo #${orderId}` }));
                 } catch (err) {
                   results.push({ orderId, ok: false, msg: getSapErrorDetail(err, "Fallo armando orden."), fileName: "", uri: "" });
                   setSendProgress((p) => ({ ...p, done: p.done + 1 }));
+                }
+              }
+
+              // Solo al terminar de generar todos los PDF, leer Base64 para el UNICO bulk SAP.
+              // Si algun archivo falla, no se incluye su orden en el paquete.
+              for (let index=toWorkOrders.length-1; index>=0; index--) {
+                const item=toWorkOrders[index];
+                const orderId=String(item?.OrderId || "").trim();
+                const pdf=tempPdfsByOrder[orderId];
+                try {
+                  if (!pdf?.tempUri) throw new Error("Falta el archivo PDF de la orden.");
+                  const info=await FileSystem.getInfoAsync(pdf.tempUri);
+                  if (!info.exists || (typeof info.size==='number' && info.size<200)) throw new Error("Archivo PDF inexistente o incompleto.");
+                  const base64=await FileSystem.readAsStringAsync(pdf.tempUri,{encoding:FileSystem.EncodingType.Base64});
+                  if (!base64 || base64.length<200) throw new Error("PDF vacio o ilegible.");
+                  item.Attachments[0].Base64=base64;
+                } catch (error) {
+                  const msg=getSapErrorDetail(error,"No se pudo leer PDF para SAP.");
+                  let backup=null;
+                  if (pdf?.tempUri) {
+                    try {
+                      backup=await saveFailedSignaturePdf({...pdf,reason:msg});
+                      await FileSystem.deleteAsync(pdf.tempUri,{idempotent:true}).catch(()=>{});
+                    } catch (e) {console.warn("[PENDIENTE_FIRMA] No se pudo respaldar PDF",orderId,e?.message);}
+                  }
+                  results.push({orderId,ok:false,msg,fileName:backup?.fileName||pdf?.fileName||"",uri:backup?.uri||pdf?.tempUri||""});
+                  toWorkOrders.splice(index,1);
+                  delete tempPdfsByOrder[orderId];
                 }
               }
 
@@ -1635,11 +1664,8 @@ export default function PendienteFirmaIndex() {
                 totalOrders: toWorkOrders.length,
               });
 
-              logSapPayload(
-                "[PENDIENTE_FIRMA][BULK_PAYLOAD_FINAL]",
-                bulkPayload,
-                { stripBase64: true }
-              );
+              // Evitar clonar miles de caracteres Base64 para la consola.
+              console.log("[PENDIENTE_FIRMA][BULK_LISTO]",{BulkId:bulkPayload.BulkId,ordenes:toWorkOrders.length});
 
               if (!online) {
                 await upsertSapQueueItem({ type: "PENDIENTE_FIRMA_BULK_0300", orderId: bulkPayload.BulkId, endpoint: workOrderBulkEndpoint, method: "POST", dedupeKey: `PENDIENTE_FIRMA_BULK_0300:${bulkPayload.BulkId}`, payload: bulkPayload });
