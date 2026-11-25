@@ -50,6 +50,7 @@ import {
   buildTbmkyBulkPayload,
 } from "../../services/riesgosSap";
 import { buildTbmkyHtml } from "../../templates/tbmkyPdfTemplate";
+import { marcarNuevoCicloCronometroTbmk } from "../../services/cronometroCiclos";
 
 // ✅ OFFLINE helpers
 import { isOnline } from "../../../../core/offline/net";
@@ -1926,6 +1927,8 @@ export default function FormularioRiesgosScreen() {
           dedupeKey: `TBMKY_BULK:${payload.orderid}`,
         });
 
+        await marcarNuevoCicloCronometroTbmk(payload.orderid);
+
         try {
           await AsyncStorage.removeItem(DRAFT_KEY);
         } catch {}
@@ -1992,6 +1995,8 @@ export default function FormularioRiesgosScreen() {
 
         return;
       }
+
+      await marcarNuevoCicloCronometroTbmk(payload.orderid);
 
       try {
         const newStatus = "0200";

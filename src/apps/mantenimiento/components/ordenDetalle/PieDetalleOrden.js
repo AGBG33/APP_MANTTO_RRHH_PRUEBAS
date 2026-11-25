@@ -49,6 +49,7 @@ export default function PieDetalleOrden({
   onGuardarPendiente,
   onAgregarFirma,
   hasSelectedOps = false,
+  timerBlocked = false,
 
   styleOverride,
 }) {
@@ -96,7 +97,8 @@ export default function PieDetalleOrden({
     );
   };
 
-  const disabledBySelection = !hasSelectedOps || !!finishingOrder;
+  const disabledBySelection = !hasSelectedOps || !!finishingOrder || !!timerBlocked;
+  const disabledFinish = !!finishingOrder || !!timerBlocked;
 
   const finishLabel = finishingOrder
     ? "Preparando…"
@@ -145,13 +147,13 @@ export default function PieDetalleOrden({
         </View>
       ) : (
         <ActionButton
-          icon="flag-outline"
+          icon={timerBlocked ? "lock-closed-outline" : "flag-outline"}
           label={finishLabel}
           onPress={onFinalizarOrden}
-          disabled={!!finishingOrder}
+          disabled={disabledFinish}
           style={[
             { backgroundColor: "#0B8457" },
-            finishingOrder && local.disabled,
+            disabledFinish && local.disabled,
           ]}
         />
       )}

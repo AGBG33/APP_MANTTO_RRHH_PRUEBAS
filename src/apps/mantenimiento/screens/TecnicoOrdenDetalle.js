@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -20,7 +20,13 @@ import api from "../../../core/api/index";
 import { useAuth } from "../../../core/auth/index";
 import { useOrdenesTecnico } from "../context/OrdenesTecnicoContext";
 import { addPageNumbersToPdfBase64 } from "../pdf/addPageNumbersToPdf";
-import { useLocalSearchParams, router } from "expo-router";
+import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
+import {
+  leerLimiteCronometro,
+  leerInicioCronometroValido,
+  guardarInicioCronometroConfirmado,
+  aplicarReinicioCronometroTbmk,
+} from "../services/cronometroCiclos";
 
 import {
   loadOrdenTecnicoDetail,
@@ -120,10 +126,9 @@ function fmtDateTimeLocal(ms) {
 
 async function loadOrderStart(orderId) {
   try {
-    const raw = await AsyncStorage.getItem(ORDER_START_KEY(orderId));
-    const v = raw ? Number(raw) : null;
-    return Number.isFinite(v) ? v : null;
-  } catch {
+    return await leerInicioCronometroValido(orderId);
+  } catch (error) {
+    console.warn("[CRONOMETRO] No se pudo recuperar inicio:", error?.message);
     return null;
   }
 }
@@ -1403,7 +1408,21 @@ export default function DetalleOrden() {
   const [consumibles, setConsumibles] = useState([]);
 
   const [startingOrder, setStartingOrder] = useState(false);
-  const [orderStartedAtMs, setOrderStartedAtMs] = useState(null);
+  const [orderStartedAtMs, setOrderStartedAtMsRaw] = useState(null);
+  const [timerRestoring, setTimerRestoring] = useState(true);
+  const timerResetAtRef = useRef(0);
+  const timerCurrentIdRef = useRef("");
+  const tbmkResetPromiseRef = useRef(null);
+  // Impide que cargas tardías de caché/pendiente restauren horas de ciclos anteriores.
+  const setOrderStartedAtMs = (value) => {
+    setOrderStartedAtMsRaw(prev => {
+      const next = typeof value === "function" ? value(prev) : value;
+      if (next == null) return null;
+      const n = Number(next);
+      if (!Number.isFinite(n) || n <= timerResetAtRef.current || n > Date.now() + 60000) return null;
+      return n;
+    });
+  };
   const [orderFinishedAtMs, setOrderFinishedAtMs] = useState(null);
   const [nowTick, setNowTick] = useState(Date.now());
   const [orderElapsedMs, setOrderElapsedMs] = useState(null);
@@ -1435,6 +1454,60 @@ export default function DetalleOrden() {
       user?.preferred_username ||
       "unknown",
   ).trim();
+
+  const recuperarInicioCronometro = async (orderId) => {
+    const idOrden = String(orderId || id || "").trim();
+    if (!idOrden) return null;
+    const limite = await leerLimiteCronometro(idOrden);
+    timerResetAtRef.current = Math.max(timerResetAtRef.current, limite);
+    const inicio = await leerInicioCronometroValido(idOrden, { incluirPendiente: true });
+    if (!inicio || inicio <= timerResetAtRef.current) return null;
+    // Verificar otra vez el límite, por si se registró un nuevo TBMK durante la lectura.
+    const limiteReciente = await leerLimiteCronometro(idOrden);
+    timerResetAtRef.current = Math.max(timerResetAtRef.current, limiteReciente);
+    if (inicio <= timerResetAtRef.current) return null;
+    setOrderStartedAtMs(inicio);
+    setNowTick(Date.now());
+    return inicio;
+  };
+
+  const aplicarReinicioTbmkEnDetalle = async (orderId) => {
+    if (tbmkResetPromiseRef.current) return tbmkResetPromiseRef.current;
+    const promesa = (async () => {
+      const resultado = await aplicarReinicioCronometroTbmk(orderId);
+      if (resultado.reiniciado) {
+        timerResetAtRef.current = Math.max(timerResetAtRef.current, resultado.resetAt);
+        setOrderStartedAtMs(null);
+        setOrderFinishedAtMs(null);
+        setOrderElapsedMs(null);
+        setPendingFinalize(null);
+        setFinalizeMode(false);
+        setShowSignModal(false);
+        setNowTick(Date.now());
+      }
+      return resultado;
+    })();
+    tbmkResetPromiseRef.current = promesa;
+    try { return await promesa; }
+    finally { if (tbmkResetPromiseRef.current === promesa) tbmkResetPromiseRef.current = null; }
+  };
+
+  // Asegurar que un TBMK recién guardado se aplique al volver al detalle,
+  // incluso si Expo Router reutiliza la misma instancia de pantalla.
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    const orderId = String(id || "").trim();
+    if (!orderId) return () => { active = false; };
+    setTimerRestoring(true);
+    (async () => {
+      await aplicarReinicioTbmkEnDetalle(orderId);
+      if (!active) return;
+      await recuperarInicioCronometro(orderId);
+    })().catch(error => {
+      console.warn("[CRONOMETRO] Error al volver al detalle:", error?.message);
+    }).finally(() => { if (active) setTimerRestoring(false); });
+    return () => { active = false; };
+  }, [id]));
 
   const baseStatusCode = pickCurrentStatusCode(orden);
 
@@ -1493,7 +1566,11 @@ export default function DetalleOrden() {
 
   const canStartTimer =
     isOrderEnProceso && !isNoMant && !isOrderFinishedReal && !!checkinDone;
-  const showRunningTimer = isOrderEnProceso && !!orderStartedAtMs;
+  const timerStartConfirmed =
+    Number.isFinite(Number(orderStartedAtMs)) && orderStartedAtMs > timerResetAtRef.current;
+  const timerBlocked = ["0200", "0400"].includes(statusCode) &&
+    (timerRestoring || !timerStartConfirmed);
+  const showRunningTimer = isOrderEnProceso && timerStartConfirmed && !timerRestoring;
   const showFrozenTimer = isPending0400 && orderElapsedMs != null;
 
   const safeSaveDetailIfWindow = async (orderId, detailObj) => {
@@ -1725,28 +1802,31 @@ export default function DetalleOrden() {
 
   useEffect(() => {
     let mounted = true;
-
+    const orderIdGuess = String(id || "").trim();
+    if (timerCurrentIdRef.current !== orderIdGuess) {
+      timerCurrentIdRef.current = orderIdGuess;
+      timerResetAtRef.current = 0;
+    }
+    setTimerRestoring(true);
+    setOrderStartedAtMs(null);
     (async () => {
-      const orderIdGuess = String(id || "").trim();
       if (!orderIdGuess) return;
-
-      const savedStart = await loadOrderStart(orderIdGuess);
+      await aplicarReinicioTbmkEnDetalle(orderIdGuess);
+      const limit = await leerLimiteCronometro(orderIdGuess);
+      timerResetAtRef.current = Math.max(timerResetAtRef.current, limit);
+      const savedStart = await leerInicioCronometroValido(orderIdGuess, { incluirPendiente: true });
       const savedFinish = await loadOrderFinish(orderIdGuess);
       const savedElapsed = await loadOrderElapsed(orderIdGuess);
-
       if (mounted) {
-        if (savedStart) {
-          setOrderStartedAtMs(savedStart);
-          setNowTick(Date.now());
-        }
+        setOrderStartedAtMs(savedStart);
+        if (savedStart) setNowTick(Date.now());
         if (savedFinish) setOrderFinishedAtMs(savedFinish);
         if (savedElapsed != null) setOrderElapsedMs(savedElapsed);
       }
-    })();
-
-    return () => {
-      mounted = false;
-    };
+    })().catch(error => {
+      console.warn("[CRONOMETRO] Falló recuperación inicial:", error?.message);
+    }).finally(() => { if (mounted) setTimerRestoring(false); });
+    return () => { mounted = false; };
   }, [id]);
 
   useEffect(() => {
@@ -2520,9 +2600,9 @@ export default function DetalleOrden() {
       return;
     }
 
-    if (orderStartedAtMs) return;
-
+    if (timerRestoring) return;
     const orderId = String(orden.Orderid).trim();
+    if (await recuperarInicioCronometro(orderId)) return;
 
     Alert.alert("Iniciar orden", "¿Deseas iniciar el cronómetro de la orden?", [
       { text: "Cancelar", style: "cancel" },
@@ -2538,9 +2618,9 @@ export default function DetalleOrden() {
             await clearOrderElapsed(orderId);
             setOrderElapsedMs(null);
 
-            const startMs = Date.now();
-            await saveOrderStart(orderId, startMs);
+            const startMs = await guardarInicioCronometroConfirmado(orderId, Date.now());
             setOrderStartedAtMs(startMs);
+            setTimerRestoring(false);
             setNowTick(Date.now());
 
             Alert.alert("Listo", "Cronómetro iniciado.");
@@ -2555,12 +2635,16 @@ export default function DetalleOrden() {
     ]);
   };
 
-  const handleFinalizarOrden = (e) => {
+  const handleFinalizarOrden = async (e) => {
     e?.stopPropagation?.();
 
     const orderid = String(orden?.Orderid ?? id ?? "").trim();
     if (!orderid) {
       Alert.alert("Error", "No se encontró el número de orden.");
+      return;
+    }
+    if (timerRestoring || !(await recuperarInicioCronometro(orderid))) {
+      Alert.alert("Cronómetro pendiente", "Inicia el cronómetro para registrar el tiempo de las actividades.");
       return;
     }
 
@@ -2591,7 +2675,8 @@ export default function DetalleOrden() {
       return;
     }
 
-    if (!orderStartedAtMs) {
+    const inicioConfirmado = await recuperarInicioCronometro(orderId);
+    if (timerRestoring || !inicioConfirmado) {
       Alert.alert(
         "Sin cronómetro",
         "No se detectó el inicio del cronómetro. Inicia la orden para poder prorratear y mandar operaciones.",
@@ -2621,7 +2706,7 @@ export default function DetalleOrden() {
       }
 
       const finishMs = Date.now();
-      const elapsedMs = Math.max(0, finishMs - orderStartedAtMs);
+      const elapsedMs = Math.max(0, finishMs - inicioConfirmado);
 
       await saveOrderElapsed(orderId, elapsedMs);
       setOrderElapsedMs(elapsedMs);
@@ -2656,7 +2741,7 @@ export default function DetalleOrden() {
         orderId,
         opsAll,
         selectedIds,
-        startMs: orderStartedAtMs,
+        startMs: inicioConfirmado,
         finishMs,
         consumiblesRows: consumibles,
         plantFallback,
@@ -2693,8 +2778,8 @@ export default function DetalleOrden() {
         tipo_equipo: tipoEquipo,
         EquipmentType: tipoEquipo,
 
-        orderStartedAtMs: Number.isFinite(orderStartedAtMs)
-          ? orderStartedAtMs
+        orderStartedAtMs: Number.isFinite(inicioConfirmado)
+          ? inicioConfirmado
           : null,
         orderFinishedAtMs: finishMs,
         orderElapsedMs: elapsedMs,
@@ -3164,7 +3249,16 @@ export default function DetalleOrden() {
         setCheckedMap(checkedMapForPdf);
       }
 
-      const timing = await resolveOrderTimeSnapshot(orderId, orden);
+      const es0400 = pickCurrentStatusCode(orden) === "0400" || isPending0400;
+      const inicioReal = es0400 ? null : await recuperarInicioCronometro(orderId);
+      if (!es0400 && (timerRestoring || !inicioReal)) {
+        Alert.alert("Sin cronómetro", "Inicia el cronómetro antes de finalizar la orden.");
+        return;
+      }
+      const finReal = Date.now();
+      const timing = es0400
+        ? await resolveOrderTimeSnapshot(orderId, orden)
+        : { startMs: inicioReal, finishMs: finReal, elapsedMs: Math.max(0, finReal - inicioReal) };
       const effectiveStartMs = timing.startMs;
       const effectiveFinishMs = timing.finishMs;
       const effectiveElapsedMs = timing.elapsedMs;
@@ -3644,7 +3738,7 @@ export default function DetalleOrden() {
       <View style={styles.container}>
         <Header title={`Orden ${id || ""}`} />
 
-        {canStartTimer && !orderStartedAtMs ? (
+        {canStartTimer && !timerStartConfirmed && !timerRestoring ? (
           <View style={styles.topActionBar}>
             <TouchableOpacity
               activeOpacity={0.9}
@@ -3734,7 +3828,7 @@ export default function DetalleOrden() {
     <View style={styles.container}>
       <Header title={`Orden ${orden?.Orderid || id || ""}`} />
 
-      {canStartTimer && !orderStartedAtMs ? (
+      {canStartTimer && !timerStartConfirmed && !timerRestoring ? (
         <View style={styles.topActionBar}>
           <TouchableOpacity
             activeOpacity={0.9}
@@ -3882,6 +3976,7 @@ export default function DetalleOrden() {
             onAgregarFirma={abrirFirmaCliente}
             onGuardarPendiente={guardarPendienteDeFirma}
             hasSelectedOps={hasSelectedOps}
+            timerBlocked={timerBlocked}
           />
         }
       />
