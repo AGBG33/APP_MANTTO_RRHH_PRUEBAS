@@ -86,7 +86,7 @@ export default function InicioModulos() {
                   Mantenimiento
                 </Text>
                 <Text style={styles.cardDescription}>
-                  Órdenes de servicio, equipos y actividades.
+                  Órdenes de servicio
                 </Text>
               </View>
 
@@ -119,10 +119,7 @@ export default function InicioModulos() {
                 Recursos Humanos
               </Text>
               <Text style={styles.cardDescription}>
-                Asistencia, jornada e incidencias.
-              </Text>
-              <Text style={styles.prototype}>
-                Vistas de prueba
+                Registro y consulta de asistencias
               </Text>
             </View>
 
@@ -216,10 +213,5 @@ const styles = StyleSheet.create({
     color: "#64748B",
     marginTop: 5,
   },
-  prototype: {
-    fontSize: 11,
-    color: "#52796F",
-    fontWeight: "600",
-    marginTop: 8,
-  },
+  
 });

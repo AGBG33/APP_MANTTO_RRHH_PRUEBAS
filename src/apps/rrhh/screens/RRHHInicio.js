@@ -203,11 +203,8 @@
 
          {policy?.habilitado && <View style={s.reminderCard}>
            <View style={s.reminderHeading}>
-             <Ionicons name="notifications-outline" color={C.red} size={22}/>
-             <View style={{ flex: 1 }}>
-               <Text style={s.sectionTitle}>Recordatorios de asistencia</Text>
-               <Text style={s.reminderSubtitle}>Avisos según tu horario SAP, sin internet y con la app cerrada.</Text>
-             </View>
+             
+             
            </View>
            <Pressable accessibilityRole="button"
              accessibilityState={{ disabled: cambiandoRecordatorios || recordatoriosActivos === null ||
