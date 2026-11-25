@@ -19,7 +19,7 @@ import Header from "../../../components/Header";
 import api from "../../../core/api/index";
 import { useAuth } from "../../../core/auth/index";
 import { useOrdenesTecnico } from "../context/OrdenesTecnicoContext";
-import { addPageNumbersToPdfBase64 } from "../pdf/addPageNumbersToPdf";
+import { generarPdfMantenimiento } from "../services/pdf/generarPdfMantenimiento";
 import { optimizarFirmaMantenimiento } from "../services/pdf/optimizarFirmaMantenimiento";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import {
@@ -52,7 +52,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
-import * as Print from "expo-print";
 
 // ✅ HTML/PDF mantenimiento (plantillas + operaciones)
 import { buildMantenimientoHtml } from "../templates/buildMantenimientoHtml";
@@ -3069,18 +3068,11 @@ export default function DetalleOrden() {
       const htmlPreview = hacerPreviewConColumnasManuales(html);
       setMantHtmlPreview(htmlPreview);
 
-      const result = await Print.printToFileAsync({
-        html: String(html || ""),
-        base64: true,
+      const { uri: pdfUri } = await generarPdfMantenimiento({
+        html,
+        incluirBase64: false,
       });
-
-      const pdfBase64ConPaginas = await addPageNumbersToPdfBase64(result.base64);
-
-      await FileSystem.writeAsStringAsync(result.uri, pdfBase64ConPaginas, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      setMantPdfUri(result.uri);
+      setMantPdfUri(pdfUri);
     } catch (error) {
       console.log("[PDF PREVIEW] Error:", error);
       setShowMantPreview(false);
@@ -3376,20 +3368,13 @@ export default function DetalleOrden() {
       let pdfUri = null;
 
       try {
-        const result = await Print.printToFileAsync({
-        html: String(html || ""),
-        base64: true,
-      });
-
-      const pdfBase64ConPaginas = await addPageNumbersToPdfBase64(result.base64);
-
-      await FileSystem.writeAsStringAsync(result.uri, pdfBase64ConPaginas, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      pdfUri = result.uri;
-      pdfBase64 = pdfBase64ConPaginas;
-      setMantPdfUri(result.uri);
+        const pdfGenerado = await generarPdfMantenimiento({
+          html,
+          incluirBase64: true, // SAP requiere Base64 para el envio 0300.
+        });
+        pdfUri = pdfGenerado.uri;
+        pdfBase64 = pdfGenerado.base64;
+        setMantPdfUri(pdfGenerado.uri);
       } catch (e) {
         console.warn("No se pudo generar PDF (base64):", e?.message || e);
         setMantPdfUri(null);

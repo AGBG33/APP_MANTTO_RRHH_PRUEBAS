@@ -14,7 +14,6 @@ import { useOrdenesTecnico } from "../context/OrdenesTecnicoContext";
 import { Ionicons } from "@expo/vector-icons";
 import Signature from "react-native-signature-canvas";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
@@ -26,7 +25,7 @@ import {
 } from "../offline/ordenesTecnicoLocalPatch";
 import { upsertSapQueueItem, processSapQueue } from "../offline/sapQueue";
 import { buildMantenimientoHtml } from "../templates/buildMantenimientoHtml";
-import { addPageNumbersToPdfBase64 } from "../pdf/addPageNumbersToPdf";
+import { generarPdfMantenimiento } from "../services/pdf/generarPdfMantenimiento";
 import { optimizarFirmaMantenimiento } from "../services/pdf/optimizarFirmaMantenimiento";
 import {
   fetchEquipmentType,
@@ -1047,13 +1046,8 @@ async function sharePdfItem(item) {
   } catch (e) { Alert.alert("Error al compartir", e?.message || "No se pudo compartir el PDF."); }
 }
 
-async function generateMaintenancePdfFile({ html }) {
-  const result = await Print.printToFileAsync({ html: String(html || ""), base64: true });
-  if (!result?.base64) throw new Error("El PDF se generó vacío. Intenta generar nuevamente la orden.");
-  const pdfBase64Final = await addPageNumbersToPdfBase64(result.base64);
-  if (!pdfBase64Final) throw new Error("No se pudo corregir el PDF final.");
-  await FileSystem.writeAsStringAsync(result.uri, pdfBase64Final, { encoding: FileSystem.EncodingType.Base64 });
-  return { uri: result.uri, base64: pdfBase64Final };
+async function generateMaintenancePdfFile({ html, incluirBase64 = false }) {
+  return generarPdfMantenimiento({ html, incluirBase64 });
 }
 
 export default function PendienteFirmaIndex() {
@@ -1512,7 +1506,10 @@ export default function PendienteFirmaIndex() {
           elapsedMs: pending?.orderElapsedMs ?? Math.max(0, pending?.orderFinishedAtMs - pending?.orderStartedAtMs),
         });
 
-        const pdfResult = await generateMaintenancePdfFile({ html });
+        const pdfResult = await generateMaintenancePdfFile({
+          html,
+          incluirBase64: false, // Vista previa: solo necesitamos el archivo.
+        });
 
         generatedPreviews.push({
           id: `preview_${orderId}_${Date.now()}`,
@@ -1589,7 +1586,10 @@ export default function PendienteFirmaIndex() {
                     elapsedMs: pending?.orderElapsedMs ?? Math.max(0, pending?.orderFinishedAtMs - pending?.orderStartedAtMs),
                   });
 
-                  const pdfResult = await generateMaintenancePdfFile({ html });
+                  const pdfResult = await generateMaintenancePdfFile({
+                    html,
+                    incluirBase64: true, // Etapa 3B.1: preservar el envio actual a SAP.
+                  });
                   const fileName = buildShortPdfFileName({ tipo, orderId });
 
                   tempPdfsByOrder[orderId] = { orderId, tempUri: pdfResult.uri, fileName, clienteEmail: email, clienteNombre: nombre, clienteCargo: cargo, comentarioCliente: comentario };
