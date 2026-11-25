@@ -137,7 +137,7 @@ export default function InicioModulos() {
         {!can(PERMISSIONS.MANTENIMIENTO.ACCEDER) && !can(PERMISSIONS.RRHH.ACCEDER) && (
           <View style={{ padding: 18, backgroundColor: "#FFFFFF", borderRadius: 12 }}>
             <Text style={{ color: "#0B1F3B", lineHeight: 21 }}>
-              {moduleError || "Tu area y puesto no tienen modulos asignados en SAP."}
+              {moduleError || "Tu area y puesto no tienen modulos asignados."}
             </Text>
             <Pressable onPress={refreshModules} style={{ marginTop: 14 }}>
               <Text style={{ color: "#0B1F3B", fontWeight: "700" }}>Reintentar consulta</Text>
