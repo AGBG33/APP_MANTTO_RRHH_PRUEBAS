@@ -15,7 +15,7 @@ import {
 } from "./rhPendingDb";
 import { leerSolicitudRHProtegida, finalizarSolicitudRHConfirmada } from "./rhPendingSecure";
 import { consultarHistorialRH } from "../services/rhHistory";
-import { obtenerEmpleadoRH } from "../../../core/employee/employeeService";
+import { obtenerEmpleadoRH } from "../services/rhEmployees";
 import { enviarMarcacionRH } from "../services/rhAttendance";
 import { enviarJustificacionRH } from "../services/rhJustifications";
 import { clasificarEmpleadoRH } from "../services/rhPolicies";

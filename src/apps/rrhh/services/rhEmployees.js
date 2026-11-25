@@ -1,6 +1,6 @@
 // src/services/rhEmployees.js
 // Consulta de EmployeeSet en SAP QAS mediante api.js (token Azure de la app).
-import api from "../api";
+import api from "../../../core/api/index";
 const EMPLOYEE_SET = "/api/odata/ZHMC_ATTENDANCE_MONITORING_SRV/EmployeeSet";
 const RH_QAS_BASE = "https://my-node-api-qas-01.cfapps.us10-001.hana.ondemand.com";
 

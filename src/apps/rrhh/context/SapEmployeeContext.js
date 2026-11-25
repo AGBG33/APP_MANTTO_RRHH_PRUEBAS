@@ -5,15 +5,15 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import NetInfo from "@react-native-community/netinfo";
-import { useAuth } from "../auth";
-import { obtenerEmpleadoRH } from "./employeeService";
+import { useAuth } from "../../../core/auth/index";
+import { obtenerEmpleadoRH } from "../services/rhEmployees";
 import { guardarPerfilRHCache, leerPerfilRHCachePorCorreo,
   guardarHistorialRHCache, leerHistorialRHCache,
-  iniciarConsultaHistorialRH } from "../../apps/rrhh/offline/rhOfflineDb";
-import { consultarHistorialRH } from "../../apps/rrhh/services/rhHistory";
-import { obtenerTurnoDelDia, hoyISO } from "../../apps/rrhh/services/rhPolicies";
-import { mesLaboralRH } from "../../apps/rrhh/services/rhBusinessRules";
-import { correoAutenticadoRH } from "./identity";
+  iniciarConsultaHistorialRH } from "../offline/rhOfflineDb";
+import { consultarHistorialRH } from "../services/rhHistory";
+import { obtenerTurnoDelDia, hoyISO } from "../services/rhPolicies";
+import { mesLaboralRH } from "../services/rhBusinessRules";
+import { correoAutenticadoRH } from "../../../core/employee/identity";
 
 export { correoAutenticadoRH };
 

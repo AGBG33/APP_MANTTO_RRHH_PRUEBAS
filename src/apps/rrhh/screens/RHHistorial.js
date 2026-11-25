@@ -11,7 +11,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import NetInfo from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import { useSapEmployee } from "../../../core/employee";
+import { useSapEmployee } from "../context/SapEmployeeContext";
 import { consultarHistorialRH, fechaLocalRH } from "../services/rhHistory";
 import { guardarHistorialRHCache, leerHistorialRHCache,
   iniciarConsultaHistorialRH } from "../offline/rhOfflineDb";

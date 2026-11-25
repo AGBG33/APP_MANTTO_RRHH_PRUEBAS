@@ -6,7 +6,7 @@
  import * as SplashScreen from 'expo-splash-screen';
 
  import { AuthProvider } from '../src/core/auth';
- import { SapEmployeeProvider } from '../src/core/employee';
+ import { SapEmployeeProvider } from '../src/apps/rrhh/context/SapEmployeeContext';
  import { OrdenesTecnicoProvider } from '../src/apps/mantenimiento/context/OrdenesTecnicoContext';
  import { UbicacionProvider } from '../src/apps/mantenimiento/context/UbicacionContext';
  import { DrawerProvider } from '../src/core/navigation/DrawerContext';

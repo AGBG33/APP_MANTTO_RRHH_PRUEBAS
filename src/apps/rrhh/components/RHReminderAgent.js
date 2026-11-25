@@ -13,7 +13,7 @@ import { useAuth } from "../../../core/auth";
 import {
   useSapEmployee,
   correoAutenticadoRH,
-} from "../../../core/employee";
+} from "../context/SapEmployeeContext";
 
 import {
   registrarSesionRecordatoriosRH,

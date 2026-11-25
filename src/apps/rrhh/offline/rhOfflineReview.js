@@ -4,7 +4,7 @@
 // No comparte tablas ni colas con mantenimiento.
 import NetInfo from "@react-native-community/netinfo";
 import { consultarHistorialRH } from "../services/rhHistory";
-import { obtenerEmpleadoRH } from "../../../core/employee/employeeService";
+import { obtenerEmpleadoRH } from "../services/rhEmployees";
 import { leerSolicitudRHProtegida } from "./rhPendingSecure";
 import {
   listarMarcacionesPendientesRH,

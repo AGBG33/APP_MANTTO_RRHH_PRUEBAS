@@ -10,7 +10,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useFocusEffect } from "expo-router";
-import { useSapEmployee } from "../../../core/employee";
+import { useSapEmployee } from "../context/SapEmployeeContext";
 import { useAuth } from "../../../core/auth";
 import { capturarMarcacionOfflineRH } from "../offline/rhOfflineCapture";
 import { leerHistorialRHCache, guardarHistorialRHCache,
@@ -27,7 +27,7 @@ import { prepararJustificacionRH, enviarJustificacionRH } from "../services/rhJu
 import { consultarHistorialRH } from "../services/rhHistory";
 import { consultarRetardosRH, cicloRetardosRH } from "../services/rhDelays";
 import { guardarRetardosRHCache, leerRetardosRHCache, leerCuartoRetardoRH } from "../offline/rhDelaysCache";
-import { obtenerEmpleadoRH } from "../../../core/employee/employeeService";
+import { obtenerEmpleadoRH } from "../services/rhEmployees";
 import { esHomeOfficeEmpleadoRH, esViajeRH, semanaLaboralRH, mesLaboralRH,
   resumirReglasRH, movimientosDesdeHistoryRH } from "../services/rhBusinessRules";
 import { clasificarEmpleadoRH, evaluarMarcacionRH, hoyISO, modalidadesPermitidasRH,

@@ -6,7 +6,7 @@ import React, { useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import { useAuth } from "../../../core/auth";
-import { useSapEmployee } from "../../../core/employee";
+import { useSapEmployee } from "../context/SapEmployeeContext";
 import { sincronizarPendientesRH } from "../offline/rhOfflineSync";
 
 export default function RHOfflineSyncAgent() {

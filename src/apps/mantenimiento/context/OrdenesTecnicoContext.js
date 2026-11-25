@@ -1,4 +1,4 @@
-import { usePermissions } from "../../../core/permissions/usePermissions";
+import { usePermissions } from "../../../shell/permissions/usePermissions";
 import { PERMISSIONS } from "../../../core/permissions/catalog";
 // src/context/OrdenesTecnicoContext.js
 import React, {

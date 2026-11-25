@@ -7,7 +7,7 @@
  import { Ionicons } from '@expo/vector-icons';
  import NetInfo from '@react-native-community/netinfo';
  import { router } from 'expo-router';
- import { useSapEmployee } from '../../../core/employee';
+ import { useSapEmployee } from '../context/SapEmployeeContext';
  import { clasificarEmpleadoRH } from '../services/rhPolicies';
  import {
    consultarPreferenciaRecordatoriosRH,

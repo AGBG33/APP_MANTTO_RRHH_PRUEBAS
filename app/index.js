@@ -6,7 +6,7 @@ import { Redirect } from "expo-router";
 
 import { useAuth } from "../src/core/auth/index";
 import { useOffline } from "../src/apps/mantenimiento/offline/OfflineProvider";
-import { usePermissions } from "../src/core/permissions/usePermissions";
+import { usePermissions } from "../src/shell/permissions/usePermissions";
 import { PERMISSIONS } from "../src/core/permissions/catalog";
 import { bootstrapPrefetchOrdenesSupervisor } from "../src/apps/mantenimiento/offline/bootstrapSync";
 

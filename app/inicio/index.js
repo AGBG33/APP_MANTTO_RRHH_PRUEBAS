@@ -13,7 +13,7 @@ import { Redirect, router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import Header from "../../src/components/Header";
-import { usePermissions } from "../../src/core/permissions/usePermissions";
+import { usePermissions } from "../../src/shell/permissions/usePermissions";
 import { PERMISSIONS } from "../../src/core/permissions/catalog";
 
 export default function InicioModulos() {

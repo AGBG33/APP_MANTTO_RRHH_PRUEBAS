@@ -3,7 +3,7 @@
 // No realiza POST, no bloquea el login y nunca consulta datos de otra identidad.
 import { useEffect } from "react";
 import NetInfo from "@react-native-community/netinfo";
-import { useSapEmployee } from "../../../core/employee";
+import { useSapEmployee } from "../context/SapEmployeeContext";
 import { obtenerTurnoDelDia, hoyISO } from "../services/rhPolicies";
 import { consultarRetardosRH } from "../services/rhDelays";
 import { guardarRetardosRHCache } from "../offline/rhDelaysCache";
