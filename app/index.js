@@ -5,10 +5,10 @@ import { ActivityIndicator, View } from "react-native";
 import { Redirect } from "expo-router";
 
 import { useAuth } from "../src/core/auth/index";
-import { useOffline } from "../src/offline/OfflineProvider";
+import { useOffline } from "../src/apps/mantenimiento/offline/OfflineProvider";
 import { usePermissions } from "../src/core/permissions/usePermissions";
 import { PERMISSIONS } from "../src/core/permissions/catalog";
-import { bootstrapPrefetchOrdenesSupervisor } from "../src/offline/bootstrapSync";
+import { bootstrapPrefetchOrdenesSupervisor } from "../src/apps/mantenimiento/offline/bootstrapSync";
 
 export default function Index() {
   const { user, loading } = useAuth();
