@@ -1,7 +1,7 @@
 // src/services/rhJustifications.js
 // Registra el motivo de un retardo (P10) o salida anticipada (P20).
 // No reintenta automáticamente para evitar duplicados si ocurre un timeout.
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 
 const ENDPOINT = "/api/odata/ZHMC_ATTENDANCE_MONITORING_SRV/JustificationLogSet";
 const RH_QAS_BASE = "https://my-node-api-qas-01.cfapps.us10-001.hana.ondemand.com";

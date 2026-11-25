@@ -1,6 +1,6 @@
 // src/offline/prefetchOrdenesTecnico.js
 
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 import {
   fetchEquipmentType,
   getEquipmentTypeFromOrder,

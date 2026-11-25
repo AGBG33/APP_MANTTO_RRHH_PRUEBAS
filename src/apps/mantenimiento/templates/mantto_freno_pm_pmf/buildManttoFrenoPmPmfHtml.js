@@ -1,13 +1,13 @@
 // src/services/templates/mantto_freno_pm_pmf/buildManttoFrenoPmPmfHtml.js
 
-import { MANTTO_FRENO_PM_PMF_TEMPLATE } from "./manttoFrenoPmPmf.template";
+import { MANTTO_FRENO_PM_PMF_TEMPLATE } from "./manttoFrenoPmPmf.template.js";
 import {
   escapeHtml,
   fmtDateLocal,
   fmtValue,
   check,
   fmtBienMal,
-} from "./manttoFrenoPmPmf.utils";
+} from "./manttoFrenoPmPmf.utils.js";
 
 function replaceAllVars(template, vars) {
   let html = String(template || "");

@@ -1,6 +1,6 @@
 import { LOGO_DATA_URI } from "./logoBase64";
-import { HTML_ELEVADORES } from "./mantenimiento_elevadores.template";
-import { HTML_ESCALERAS } from "./mantenimiento_escaleras.template";
+import { HTML_ELEVADORES } from "./mantenimiento_elevadores.template.js";
+import { HTML_ESCALERAS } from "./mantenimiento_escaleras.template.js";
 import { renderOperacionesAgrupadasHtml } from "./renderOperacionesHtml";
 
 const safeStr = (v) => String(v ?? "").trim();

@@ -1,5 +1,5 @@
 // src/services/operacionesSupervisor.js
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 import { cacheGet, cacheSet } from "../../../core/offline/db";
 import { cacheKeys } from "../offline/keys";
 import { isOnline } from "../../../core/offline/net";

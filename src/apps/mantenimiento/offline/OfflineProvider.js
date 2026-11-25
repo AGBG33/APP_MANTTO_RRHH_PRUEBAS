@@ -14,7 +14,7 @@ import { logStorageDiagnostics } from "./storageDiagnostics";
 import { subscribeOnline } from "../../../core/offline/net";
 import { runOutboxSync } from "./syncEngine";
 import { processSapQueue } from "./sapQueue";
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 
 const OfflineContext = createContext(null);
 

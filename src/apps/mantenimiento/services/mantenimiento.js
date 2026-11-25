@@ -1,5 +1,5 @@
 // src/services/mantenimiento.js
-import api from '../../../core/api';
+import api from '../../../core/api/index';
 
 export async function fetchDatosMantenimiento(orderid) {
   const { data } = await api.get(`/api/mantenimiento/datos/${encodeURIComponent(orderid)}`);

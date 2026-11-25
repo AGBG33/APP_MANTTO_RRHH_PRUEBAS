@@ -11,7 +11,7 @@ useRef,
 useState,
 } from "react";
 import { AppState } from "react-native";
-import { useAuth } from "../../../core/auth";
+import { useAuth } from "../../../core/auth/index";
 import { useOffline } from "../offline/OfflineProvider";
 import {
 loadOrdenesTecnicoList,

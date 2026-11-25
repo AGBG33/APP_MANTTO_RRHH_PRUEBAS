@@ -4,7 +4,7 @@
 import { Platform } from "react-native";
 import * as Location from "expo-location";
 import * as Application from "expo-application";
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 import { codigoModalidadRH, TIPOS_RH, evaluarMarcacionRH, obtenerTurnoDelDia } from "./rhPolicies";
 
 const ENDPOINT = "/api/odata/ZHMC_ATTENDANCE_MONITORING_SRV/AttendanceRecordSet";

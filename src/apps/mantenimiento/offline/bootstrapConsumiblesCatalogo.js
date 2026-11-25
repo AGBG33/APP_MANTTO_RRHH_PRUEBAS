@@ -1,5 +1,5 @@
 import { isOnline } from "../../../core/offline/net";
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 import { mergeConsumiblesPair } from "./consumiblesCatalogoCache";
 
 export const COVERAGE_PAIRS = {

@@ -1,5 +1,5 @@
 // src/services/mantenimientoPdfSap.js
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 import * as FileSystem from "expo-file-system/legacy";
 
 export async function subirPdfMantenimientoASap({

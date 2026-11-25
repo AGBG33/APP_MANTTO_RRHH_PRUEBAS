@@ -1,5 +1,5 @@
 // src/services/avisoAveriaSap.js
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 

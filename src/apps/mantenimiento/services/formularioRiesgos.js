@@ -1,4 +1,4 @@
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 
 // ✅ endpoint en BTP: POST /api/formulario-riesgos
 export const guardarFormularioRiesgos = async (payload) => {

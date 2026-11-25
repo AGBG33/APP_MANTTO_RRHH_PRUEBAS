@@ -3,7 +3,7 @@
 // NO cuenta DayStatus de AttendanceHistorySet ni genera marcaciones.
 // Si SAP responde HTTP 2xx con una lista de resultados VACÍA, el total del mes es 0.
 // No confundir una lista vacía con errores de SAP ni con datos de otra persona.
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 
 const ENDPOINT = "/api/odata/ZHMC_ATTENDANCE_MONITORING_SRV/ProcessingDelaysSet";
 const QAS_BASE = "https://my-node-api-qas-01.cfapps.us10-001.hana.ondemand.com";

@@ -1,6 +1,6 @@
 // src/services/templates/mantto_freno_pm/buildManttoFrenoPmHtml.js
 
-import { MANTTO_FRENO_PM_TEMPLATE } from "./manttoFrenoPm.template";
+import { MANTTO_FRENO_PM_TEMPLATE } from "./manttoFrenoPm.template.js";
 import {
   escapeHtml,
   fmtDateLocal,
@@ -9,7 +9,7 @@ import {
   fmtSiNo,
   fmtBienMal,
   fmtMm,
-} from "./manttoFrenoPm.utils";
+} from "./manttoFrenoPm.utils.js";
 
 function replaceAllVars(template, vars) {
   let html = String(template || "");

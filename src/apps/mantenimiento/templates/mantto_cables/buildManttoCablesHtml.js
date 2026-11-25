@@ -1,6 +1,6 @@
 // src/services/templates/mantto_cables/buildManttoCablesHtml.js
 
-import { MANTTO_CABLES_TEMPLATE } from "./manttoCables.template";
+import { MANTTO_CABLES_TEMPLATE } from "./manttoCables.template.js";
 import {
   escapeHtml,
   fmtDateLocal,
@@ -8,7 +8,7 @@ import {
   fmtValue,
   numberOrDash,
   check,
-} from "./manttoCables.utils";
+} from "./manttoCables.utils.js";
 
 function replaceAllVars(template, vars) {
   let html = String(template || "");

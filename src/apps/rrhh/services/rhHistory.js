@@ -3,7 +3,7 @@
 // P10/P20/P15/P25 en la jornada de inicio cuando el horario cruza medianoche.
 // No modifica registros ni hace POST. La opción scheduleDetail es compatible
 // con todos los llamadores anteriores: en horario diurno no cambia nada.
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 import { obtenerTurnoDelDia } from "./rhPolicies";
 import { consolidarJornadasNocturnasRH, esHorarioNocturnoRH,
   movimientosDesdeHistoryRH } from "./rhBusinessRules";

@@ -1,4 +1,4 @@
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 import {
   buildWorkOrderBulkId,
 } from "../../../utils/workOrderBulkId";

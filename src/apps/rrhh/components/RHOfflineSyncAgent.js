@@ -5,7 +5,7 @@
 import React, { useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
-import { useAuth } from "../../../core/auth";
+import { useAuth } from "../../../core/auth/index";
 import { useSapEmployee } from "../context/SapEmployeeContext";
 import { sincronizarPendientesRH } from "../offline/rhOfflineSync";
 

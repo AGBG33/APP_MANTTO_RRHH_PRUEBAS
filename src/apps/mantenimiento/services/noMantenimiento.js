@@ -1,5 +1,5 @@
 // src/services/noMantenimiento.js
-import api from "../../../core/api";
+import api from "../../../core/api/index";
 
 export const ESTATUS_CARTA_NO_MANTTO = "0600";
 

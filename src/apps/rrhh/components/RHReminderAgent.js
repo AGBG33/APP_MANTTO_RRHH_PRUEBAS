@@ -8,7 +8,7 @@ import {
 
 import * as Notifications from "expo-notifications";
 
-import { useAuth } from "../../../core/auth";
+import { useAuth } from "../../../core/auth/index";
 
 import {
   useSapEmployee,

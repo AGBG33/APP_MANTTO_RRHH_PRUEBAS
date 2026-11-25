@@ -11,7 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { router, useFocusEffect } from "expo-router";
 import { useSapEmployee } from "../context/SapEmployeeContext";
-import { useAuth } from "../../../core/auth";
+import { useAuth } from "../../../core/auth/index";
 import { capturarMarcacionOfflineRH } from "../offline/rhOfflineCapture";
 import { leerHistorialRHCache, guardarHistorialRHCache,
   iniciarConsultaHistorialRH } from "../offline/rhOfflineDb";

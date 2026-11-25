@@ -1,4 +1,4 @@
-import { MANTTO_FRENO_EM_EH_TEMPLATE } from "./manttoFrenoEmEh.template";
+import { MANTTO_FRENO_EM_EH_TEMPLATE } from "./manttoFrenoEmEh.template.js";
 import {
   escapeHtml,
   fmtDateLocal,
@@ -8,7 +8,7 @@ import {
   fmtBienMal,
   fmtMm,
   fmtPct,
-} from "./manttoFrenoEmEh.utils";
+} from "./manttoFrenoEmEh.utils.js";
 
 function replaceAllVars(template, vars) {
   let html = String(template || "");

@@ -5,8 +5,8 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import * as Location from "expo-location";
 import { Alert, AppState, Linking, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useAuth } from "../../../core/auth";
-import api from "../../../core/api";
+import { useAuth } from "../../../core/auth/index";
+import api from "../../../core/api/index";
 // ✅ Offline
 import { isOnline } from "../../../core/offline/net";
 import { outboxAdd } from "../../../core/offline/db";
