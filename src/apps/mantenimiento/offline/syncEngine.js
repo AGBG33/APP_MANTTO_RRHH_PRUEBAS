@@ -1,6 +1,6 @@
 // src/offline/syncEngine.js
 import { outboxList, outboxMarkSending, outboxMarkSent, outboxMarkError, outboxDeleteSent } from "./db";
-import { isOnline } from "./net";
+import { isOnline } from "../../../core/offline/net";
 
 // apiInstance = tu axios (src/services/api)
 export async function runOutboxSync(apiInstance, { limit = 20 } = {}) {

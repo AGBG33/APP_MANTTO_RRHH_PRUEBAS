@@ -11,7 +11,7 @@ import React, {
 
 import { initDb, outboxReplaceRequestUrl } from "./db";
 import { logStorageDiagnostics } from "./storageDiagnostics";
-import { subscribeOnline } from "./net";
+import { subscribeOnline } from "../../../core/offline/net";
 import { runOutboxSync } from "./syncEngine";
 import { processSapQueue } from "./sapQueue";
 import api from "../../../core/api";

@@ -52,7 +52,7 @@ import {
 import { buildTbmkyHtml } from "../../templates/tbmkyPdfTemplate";
 
 // ✅ OFFLINE helpers
-import { isOnline } from "../../offline/net";
+import { isOnline } from "../../../../core/offline/net";
 import { upsertSapQueueItem } from "../../offline/sapQueue";
 import {
   setLocalStatusPatch,

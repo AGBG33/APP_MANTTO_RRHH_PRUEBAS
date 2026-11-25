@@ -25,7 +25,7 @@ import Header from "../../../components/Header";
 import { router } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-import { isOnline } from "../offline/net";
+import { isOnline } from "../../../core/offline/net";
 import { fetchOrdenesSupervisor } from "../services/ordenesSupervisor";
 import {
   fetchOrdenDetalleSupervisor,

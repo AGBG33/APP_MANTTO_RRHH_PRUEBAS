@@ -1,6 +1,6 @@
 // src/offline/bootstrapSync.js
 
-import { isOnline } from "./net";
+import { isOnline } from "../../../core/offline/net";
 import { fetchOrdenesSupervisor } from "../services/ordenesSupervisor";
 
 /**

@@ -8,7 +8,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../../../core/auth";
 import api from "../../../core/api";
 // ✅ Offline
-import { isOnline } from "../offline/net";
+import { isOnline } from "../../../core/offline/net";
 import { outboxAdd } from "../offline/db";
 const UbicacionContext = createContext();
 const msToSapDate = (ms) => `/Date(${ms})/`;

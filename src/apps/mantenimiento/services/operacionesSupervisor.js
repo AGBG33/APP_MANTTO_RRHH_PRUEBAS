@@ -2,7 +2,7 @@
 import api from "../../../core/api";
 import { cacheGet, cacheSet } from "../offline/db";
 import { cacheKeys } from "../offline/keys";
-import { isOnline } from "../offline/net";
+import { isOnline } from "../../../core/offline/net";
 
 /** Encabezado/Detalle de orden (SAP) */
 export async function fetchOrdenDetalleSupervisor(orderid) {

@@ -18,7 +18,7 @@ import * as Crypto from "expo-crypto";
 import Constants from "expo-constants";
 
 import { authGet, authSet, authDel } from "../../offline/db";
-import { isOnline } from "../../offline/net";
+import { isOnline } from "../offline/net";
 
 WebBrowser.maybeCompleteAuthSession();
 

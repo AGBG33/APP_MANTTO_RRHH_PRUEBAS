@@ -1,6 +1,6 @@
 // src/offline/bootstrapSyncTecnico.js
 
-import { isOnline } from "./net";
+import { isOnline } from "../../../core/offline/net";
 
 import {
   buildOfflineWindow,

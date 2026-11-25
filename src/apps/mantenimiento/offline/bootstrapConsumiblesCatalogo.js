@@ -1,4 +1,4 @@
-import { isOnline } from "./net";
+import { isOnline } from "../../../core/offline/net";
 import api from "../../../core/api";
 import { mergeConsumiblesPair } from "./consumiblesCatalogoCache";
 
