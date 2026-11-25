@@ -27,6 +27,7 @@ import {
 import { upsertSapQueueItem, processSapQueue } from "../offline/sapQueue";
 import { buildMantenimientoHtml } from "../templates/buildMantenimientoHtml";
 import { addPageNumbersToPdfBase64 } from "../pdf/addPageNumbersToPdf";
+import { optimizarFirmaMantenimiento } from "../services/pdf/optimizarFirmaMantenimiento";
 import {
   fetchEquipmentType,
   getEquipmentTypeFromOrder,
@@ -1461,10 +1462,12 @@ export default function PendienteFirmaIndex() {
     }, 150);
   };
 
-  const onSignatureOK = (sig) => { 
-      setFirmaDataUrl(sig); 
-      setShowFirmaModal(false); 
-      Alert.alert("Firma capturada", `Lista para ${firmaForOrderIds.length} orden(es).`); 
+  const onSignatureOK = async (sig) => {
+    // Optimizar una sola vez: esta firma se reutiliza para todos los PDFs.
+    const firmaLista = await optimizarFirmaMantenimiento(sig);
+    setFirmaDataUrl(firmaLista);
+    setShowFirmaModal(false);
+    Alert.alert("Firma capturada", `Lista para ${firmaForOrderIds.length} orden(es).`);
   };
   
   const onSignatureEmpty = () => { Alert.alert("Firma vacía", "El cliente no firmó."); };

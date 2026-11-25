@@ -20,6 +20,7 @@ import api from "../../../core/api/index";
 import { useAuth } from "../../../core/auth/index";
 import { useOrdenesTecnico } from "../context/OrdenesTecnicoContext";
 import { addPageNumbersToPdfBase64 } from "../pdf/addPageNumbersToPdf";
+import { optimizarFirmaMantenimiento } from "../services/pdf/optimizarFirmaMantenimiento";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import {
   leerLimiteCronometro,
@@ -3044,7 +3045,7 @@ export default function DetalleOrden() {
         orden,
         operaciones: opsForPdf,
         checkedMap: checkedMapForPdf,
-        signatureData,
+        signatureData: await optimizarFirmaMantenimiento(signatureData),
         clienteEmail: String(clienteEmail || "").trim(),
         clienteNombre: String(clienteNombre || "").trim(),
         clienteCargo: String(clienteCargo || "").trim(),
@@ -3347,7 +3348,7 @@ export default function DetalleOrden() {
         orden,
         operaciones: opsForPdf,
         checkedMap: checkedMapForPdf,
-        signatureData,
+        signatureData: await optimizarFirmaMantenimiento(signatureData),
         clienteEmail: email,
         clienteNombre: String(clienteNombre || "").trim(),
         clienteCargo: String(clienteCargo || "").trim(),
