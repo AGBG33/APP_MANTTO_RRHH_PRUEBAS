@@ -98,7 +98,7 @@ export function crearPlanRecordatoriosRH({
           const cuando = ventana.inicio + posiciones[i];
           if (i > 0 && cuando > ventana.fin - MINUTO) continue;
           agregar(fecha, 'P15', cuando, 'Recordatorio de inicio de comida',
-            `Tu ventana SAP de comida es ${hora(ventana.inicio)}–${hora(ventana.fin)}. Si no iniciaste comida, registra P15.`);
+            `Tu horario de comida es ${hora(ventana.inicio)}–${hora(ventana.fin)}. Si aún no lo hiciste, registra tu inicio de comida.`);
         }
 
         // P25 solo DESPUÉS de registrar realmente P15, no al comienzo del día.
@@ -118,7 +118,7 @@ export function crearPlanRecordatoriosRH({
                 agregar(fecha, 'P25', cuando, 'Recordatorio de regreso de comida',
                   conDuracion && finOrientativo <= ventana.fin
                     ? `Tu tiempo de comida de referencia termina a las ${hora(objetivo)}. Si no has registrado P25, realiza tu regreso.`
-                    : `La ventana SAP de comida finaliza a las ${hora(ventana.fin)}. Si no has registrado P25, revisa tu regreso.`);
+                    : `Tu horario de comida termina a las ${hora(ventana.fin)}. Si aún no lo hiciste, registra tu regreso de comida.`);
               }
             }
           }

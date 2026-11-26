@@ -76,7 +76,7 @@ export async function obtenerEmpleadoRH(identificador) {
         throw e;
       }
       const items = response?.data?.d?.results;
-      if (!Array.isArray(items)) throw Error("SAP devolvió un formato distinto de d.results.");
+      if (!Array.isArray(items)) throw Error("No pudimos interpretar la información de tu perfil laboral.");
       const match = items.find(item => filtro.tipo === "numero"
         ? str(item, "PersonalNumber").padStart(8, "0") === filtro.valor
         : str(item, "Email").toLowerCase() === filtro.valor.toLowerCase());
@@ -86,9 +86,9 @@ export async function obtenerEmpleadoRH(identificador) {
   } catch (error) {
     const status = error?.response?.status;
     if (status === 401) throw Error("Tu sesión expiró. Inicia sesión nuevamente.");
-    if (status === 403) throw Error("SAP rechazó la consulta del empleado por permisos.");
-    if (status === 404) throw Error("No se encontró EmployeeSet en QAS.");
-    if (status >= 500) throw Error("SAP QAS devolvió un error. Inténtalo después.");
+    if (status === 403) throw Error("No tienes permiso para consultar este perfil laboral.");
+    if (status === 404) throw Error("La información del empleado no está disponible temporalmente.");
+    if (status >= 500) throw Error("No pudimos consultar tu perfil laboral. Inténtalo después.");
     throw error;
   }
 }

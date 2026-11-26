@@ -25,10 +25,10 @@ const hora = x => {
 async function validarSesion({ personalNumber, email, ensureValidToken }) {
   const red = await NetInfo.fetch();
   if (!red.isConnected || red.isInternetReachable === false) {
-    throw Error("Necesitas internet para verificar esta marcacion en SAP.");
+    throw Error("Necesitas internet para verificar esta marcación.");
   }
   if (typeof ensureValidToken !== "function" || !(await ensureValidToken())) {
-    throw Error("Tu sesion necesita validarse nuevamente antes de consultar SAP.");
+    throw Error("Debes validar nuevamente tu sesión antes de consultar tu historial.");
   }
   const empleado = await obtenerEmpleadoRH(email);
   if (!empleado || empleado.numeroConfirmadoEnSAP !== true ||
@@ -94,7 +94,7 @@ export async function verificarMarcacionGuardadaRH({
       fila.estado !== "revision" && fila.estado !== "confirmado") {
     await cambiarEstadoMarcacionRH({
       personalNumber, email, id, nuevoEstado: "revision",
-      error: `SAP tiene ${fila.tipo} a las ${comprobacion.horaSAP}; la marca local es ${fila.horaMarcacion}.`,
+      error: `El historial tiene ${fila.tipo} a las ${comprobacion.horaSAP}; tu registro guardado indica ${fila.horaMarcacion}.`,
     });
   }
   return comprobacion;
@@ -114,7 +114,7 @@ export async function autorizarReenvioMarcacionGuardadaRH({
   });
   if (verificacion.resultado === "encontrado") return { estado: "confirmado", reenvio: false };
   if (verificacion.resultado !== "ausente") {
-    throw Error("SAP no permite confirmar la ausencia de este registro. Requiere revision con RH.");
+    throw Error("No pudimos confirmar que este registro esté ausente. Consulta con Recursos Humanos.");
   }
   const fila = await obtenerFila({ personalNumber, email, id });
   if (!ESTADOS_REVISABLES.has(fila.estado)) {
@@ -122,7 +122,7 @@ export async function autorizarReenvioMarcacionGuardadaRH({
   }
   await cambiarEstadoMarcacionRH({
     personalNumber, email, id, nuevoEstado: "pendiente",
-    error: "Reenvio manual autorizado tras consultar SAP; se conserva el comprobante original.",
+    error: "Reenvío manual autorizado después de verificar el historial; se conserva el comprobante original.",
   });
   return { estado: "pendiente", reenvio: true };
 }

@@ -68,7 +68,7 @@ async function comprobarSinInternet() {
   const desconectado = estado.isConnected === false ||
     estado.isInternetReachable === false;
   if (!desconectado) {
-    throw Error("RRHH offline: este modo es exclusivo para cuando no hay internet. Usa el registro normal con SAP.");
+    throw Error("El registro sin conexión solo está disponible cuando no hay internet. Utiliza el registro normal.");
   }
 }
 
@@ -131,7 +131,7 @@ export async function validarCapturaOfflineRH({
   // SAP lo confirmo previamente para ESTA nomina y ESTE correo.
   const copia = await leerPerfilRHCache({ personalNumber, email });
   if (!copia || copia.perfil?.numeroConfirmadoEnSAP !== true) {
-    throw Error("RRHH offline: primero debes validar tu perfil con SAP teniendo internet.");
+    throw Error("Antes de registrar sin conexión, inicia sesión con internet para verificar tu perfil laboral.");
   }
   comprobarVigencia(copia.guardadoEn, "tu perfil", ahoraMs);
   const perfil = copia.perfil;
@@ -143,7 +143,7 @@ export async function validarCapturaOfflineRH({
       // de comida que SAP confirmo para la identidad de este empleado.
       s(perfil.timeFoodSchedule) !== s(empleado.timeFoodSchedule) ||
       s(perfil.timeFood) !== s(empleado.timeFood)) {
-    throw Error("RRHH offline: el perfil en pantalla no coincide con los datos guardados de SAP.");
+    throw Error("Tu perfil no coincide con la información guardada en el teléfono. Inicia sesión nuevamente.");
   }
   const politica = clasificarEmpleadoRH(perfil);
   if (!politica.habilitado) throw Error(politica.razon);
@@ -200,10 +200,10 @@ export async function validarCapturaOfflineRH({
     throw Error("RRHH offline: ya generaste tu cuarto retardo del ciclo. Solo se registró la entrada; los demás movimientos están bloqueados por inasistencia.");
   }
   if (resumen.inasistenciaSAP || (resumen.homeOfficeHoy && modalidad !== "HomeOffice")) {
-    throw Error("RRHH offline: SAP ya registro un estado incompatible para esta jornada. Revisa en linea.");
+    throw Error("Tu jornada tiene un estado que impide esta marcación. Conéctate a internet para revisarlo.");
   }
   if (modalidad === "HomeOffice" && resumen.homeOfficeUsadoSemana && !resumen.homeOfficeHoy) {
-    throw Error("RRHH offline: ya hay Home Office registrado esta semana; consulta SAP antes de iniciar otro.");
+    throw Error("Ya tienes un día de Home Office registrado esta semana. Verifica tu historial antes de iniciar otro.");
   }
   // Si la semana cruza de mes y no tenemos cache del periodo anterior, una
   // nueva jornada HO no puede confirmar cuota semanal de manera confiable.
@@ -224,7 +224,7 @@ export async function validarCapturaOfflineRH({
   // No contar un P10 pendiente usando el total mensual ACTUAL: podría ser
   // el 3.er retardo recién incorporado al contador de ProcessingDelaysSet.
   if (deHoy.some(p => ESTADOS_POR_REVISAR.has(p.estado))) {
-    throw Error("RRHH offline: existe un registro que necesita revision. No se admiten nuevas marcaciones hasta verificarlo con SAP.");
+    throw Error("Hay un registro pendiente de revisión. No puedes crear nuevas marcaciones hasta verificarlo.");
   }
   // Conservamos la secuencia: un P10 pendiente permite despues P15/P20,
   // pero SIGUE apareciendo como PENDIENTE en SQLite y en la UI futura.
@@ -255,7 +255,7 @@ export async function validarCapturaOfflineRH({
         continue; // Confirmado en SQLite Y en SAP: usar solamente el de SAP.
       }
       // Una fila no confirmada o una hora distinta requiere conciliacion real.
-      throw Error("RRHH offline: hay una marcacion local sin conciliar con SAP para " +
+      throw Error("Hay una marcación guardada pendiente de verificar para " +
         local.type + ". Verifica el comprobante cuando recuperes internet.");
     }
     // Si una consulta mas nueva de SAP no contiene una marcacion que la cola
@@ -263,7 +263,7 @@ export async function validarCapturaOfflineRH({
     // Puede haberse eliminado en QAS o aun no reflejarse en el historial.
     if (fila?.estado === "confirmado" &&
         Number(historial.guardadoEn) > Number(fila.actualizadoEn || 0)) {
-      throw Error("RRHH offline: una marcacion antes confirmada ya no aparece en la ultima copia de SAP. " +
+      throw Error("Una marcación antes confirmada ya no aparece en el último historial guardado. " +
         "Conectate para revisar la diferencia antes de continuar.");
     }
     localesParaValidar.push(local);
@@ -371,9 +371,9 @@ export async function capturarMarcacionOfflineRH({
     gpsAccuracyMeters,
     cuartoRetardo: validacion.cuartoRetardo,
     aviso: validacion.cuartoRetardo
-      ? "Entrada guardada por cuarto retardo del ciclo. La jornada está bloqueada por inasistencia hasta la conciliación con SAP."
+      ? "Entrada guardada por cuarto retardo del ciclo. La jornada está bloqueada hasta que se verifique la inasistencia."
       : guardada.yaExistia
       ? "Ya existia una marcacion guardada localmente. Revisa pendientes."
-      : "Marcacion guardada en el telefono. Pendiente de conciliacion y envio a SAP.",
+      : "Marcación guardada en el teléfono. Pendiente de verificación y sincronización.",
   };
 }

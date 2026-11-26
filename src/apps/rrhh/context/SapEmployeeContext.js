@@ -129,7 +129,7 @@ export function SapEmployeeProvider({ children }) {
           if (!live) return;
           if (!recuperado) {
             setState({ ...ESTADO_INICIAL, identity,
-              error: "Sin internet y sin perfil guardado vigente. Conectate para consultar EmployeeSet al menos una vez." });
+              error: "No hay conexión ni información laboral guardada. Conéctate a internet para consultar tu perfil por primera vez." });
           }
           return;
         }

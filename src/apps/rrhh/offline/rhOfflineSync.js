@@ -256,17 +256,17 @@ export async function sincronizarPendientesRH({
         continue;
       }
       if (verificacion === "conflicto") {
-        if (fila.estado !== "revision") await cambiar(fila, "revision", "SAP registra ese movimiento con otra hora: requiere revisión por RH.");
+        if (fila.estado !== "revision") await cambiar(fila, "revision", "Este movimiento aparece con otra hora en el historial: requiere revisión de Recursos Humanos.");
         res.revision++;
         res.ok = false;
         res.reason = "conflicto";
-        res.detail = "SAP tiene una marcacion con otra hora: requiere revision RH.";
+        res.detail = "Este movimiento tiene una hora diferente en el historial: requiere revisión de Recursos Humanos.";
         break; // Bloquear los siguientes movimientos dependientes.
       }
       // Rechazos tampoco se reenvían; solo se reconcilian contra el historial.
       if (fila.estado === "rechazado") {
         res.ok = false; res.reason = "rechazado";
-        res.detail = fila.ultimoError || "SAP rechazo este registro; revisalo antes de reenviar.";
+        res.detail = fila.ultimoError || "Este registro fue rechazado; revísalo antes de reenviar.";
         break;
       }
       // No repetir automáticamente algo que pudo haberse procesado.

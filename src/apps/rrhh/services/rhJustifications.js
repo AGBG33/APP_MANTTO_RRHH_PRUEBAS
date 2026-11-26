@@ -75,7 +75,7 @@ export async function enviarJustificacionRH(payload) {
   const mensaje = String(body?.Message ?? "").trim();
   if (response.status < 200 || response.status >= 300 || response?.data?.error ||
       (estado !== "S" && estado !== "OK")) {
-    const e = Error(mensaje || `SAP no confirmó la justificación (Status: ${estado || "vacío"}).`);
+    const e = Error(mensaje || `No se confirmó la justificación (estado: ${estado || "sin información"}).`);
     e.sapRejected = !!estado && !["S", "OK"].includes(estado);
     e.sapStatus = estado;
     e.sapMessage = mensaje;

@@ -189,7 +189,7 @@ export default function RHHistorial() {
       return undefined;
     }
     if (!nominaValida || !correo) {
-      setError(perfilError || "No pudimos validar tu identidad y nómina con el perfil SAP.");
+      setError(perfilError || "No pudimos validar tu información laboral. Comunícate con Recursos Humanos.");
       setClaveError(claveConsulta);
       setClaveCargada("");
       setJornadas([]);
@@ -286,8 +286,8 @@ export default function RHHistorial() {
         }
         const mensaje = status === 401 ? "Tu sesión terminó. Inicia sesión nuevamente."
           : status === 403 ? "No tienes permiso para consultar el historial."
-          : status === 404 ? "No se encontró AttendanceHistorySet en SAP QAS."
-          : status >= 500 ? "SAP no está disponible. Intenta más tarde."
+          : status === 404 ? "El historial de asistencias no está disponible temporalmente."
+          : status >= 500 ? "No pudimos consultar el historial. Intenta más tarde."
           : texto.startsWith("No hay una copia offline") ? texto
           : texto === "El historial excedió el límite de páginas. Consulta un período menor." ? texto
           : "No pudimos consultar las asistencias. Verifica tu conexión e inténtalo de nuevo.";
@@ -369,14 +369,14 @@ export default function RHHistorial() {
       <Ionicons name="cloud-offline-outline" size={19} color={C.sub}/>
       <Text style={s.offlineNoticeText}>
         Información guardada en este dispositivo{cacheGuardadoEn ? ` · Actualizada: ${new Date(cacheGuardadoEn).toLocaleString("es-MX")}` : ""}.
-        Puede haber registros más recientes en SAP.
+        Es posible que existan registros más recientes.
       </Text>
     </View>}
     {consultando && <View style={[s.stateCard, actualizandoPeriodo && s.stateCompact]} accessibilityLiveRegion="polite">
       <ActivityIndicator size={actualizandoPeriodo ? "small" : "large"} color={C.red}/>
-      <Text style={s.stateText}>{perfilLoading ? "Consultando tu perfil en SAP…" : actualizandoPeriodo
-        ? "Actualizando historial en SAP; se muestran los datos de la última consulta confirmada."
-        : "Consultando tus asistencias en SAP…"}</Text>
+      <Text style={s.stateText}>{perfilLoading ? "Consultando tu información laboral…" : actualizandoPeriodo
+        ? "Actualizando tu historial de asistencia; se muestran los datos de la última consulta confirmada."
+        : "Consultando tus asistencias…"}</Text>
     </View>}
     {errorDelPeriodo && <View style={s.stateCard}>
       <Ionicons name="alert-circle-outline" size={31} color={C.danger}/>

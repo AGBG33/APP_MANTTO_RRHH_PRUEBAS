@@ -408,7 +408,7 @@ export function sincronizarRecordatoriosRH({ empleado, email, origenPerfil = 'sa
 export async function activarRecordatoriosRH({ empleado, email, origenPerfil } = {}) {
   const identidad = identidadRecordatoriosRH(empleado, email);
   if (!identidad || !permitidoParaSesion(identidad, generacionSesion) || origenPerfil !== 'sap') {
-    throw Error('Para activar los recordatorios, inicia sesión y valida el perfil en SAP con internet.');
+    throw Error('Para activar los recordatorios, inicia sesión con internet y verifica tu perfil laboral.');
   }
   const generacion = generacionSesion;
   const permiso = await prepararCanalYPermisos(true);
@@ -422,7 +422,7 @@ export async function activarRecordatoriosRH({ empleado, email, origenPerfil } =
         empleado, email, identidad, generacion, origenPerfil: 'sap', cacheReciente: true,
       });
       if (!resultado.programados) {
-        throw Error('No fue posible programar avisos con el horario SAP actual. Revisa ScheduleDetail, TimeFoodSchedule y los días laborales.');
+        throw Error('No pudimos programar los avisos con tu horario laboral. Comunícate con Recursos Humanos para revisar tus horarios.');
       }
       return resultado;
     } catch (error) {
@@ -480,7 +480,7 @@ export function programarPruebaRecordatorioRH({ empleado, email } = {}) {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Prueba de recordatorios RRHH',
-        body: 'El teléfono recibió un aviso local, sin enviar registros a SAP.',
+        body: 'Esta es una notificación de prueba. No se envió ningún registro de asistencia.',
         sound: 'default',
         data: { rhFuente: MARCA, propietario: identidad, esPrueba: true },
       },

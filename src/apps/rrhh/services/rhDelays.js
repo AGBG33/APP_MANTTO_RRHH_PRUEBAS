@@ -38,10 +38,10 @@ export function periodoRetardosRH(fechaJornada) {
 
 function enteroSAP(valor, nombre) {
   const t = String(valor ?? "").trim();
-  if (!/^\d{1,6}$/.test(t)) throw Error(`ProcessingDelaysSet: ${nombre} inválido.`);
+  if (!/^\d{1,6}$/.test(t)) throw Error(`La información de retardos contiene un dato inválido (${nombre}).`);
   const numero = Number(t);
   if (!Number.isSafeInteger(numero) || numero < 0) {
-    throw Error(`ProcessingDelaysSet: ${nombre} inválido.`);
+    throw Error(`La información de retardos contiene un dato inválido (${nombre}).`);
   }
   return numero;
 }
@@ -79,13 +79,13 @@ export async function consultarRetardosRH({ personalNumber, fechaJornada, signal
   // Las respuestas OData pueden llegar en formato V2 (d.results) o V4 (value).
   const datos = response?.data;
   if (datos?.error || datos?.d?.error) {
-    throw Error("ProcessingDelaysSet devolvió un error de SAP.");
+    throw Error("No pudimos consultar tu información de retardos.");
   }
   const body = datos?.d ?? datos;
   const rows = Array.isArray(body?.results) ? body.results :
     (Array.isArray(body?.value) ? body.value :
       (Array.isArray(body) ? body : null));
-  if (!rows) throw Error("ProcessingDelaysSet devolvió un JSON inesperado.");
+  if (!rows) throw Error("No pudimos interpretar la información de retardos.");
 
   // CORRECCIÓN: sin registros de ProcessingDelaysSet significa que SAP aún no
   // tiene un resumen de retardos para el mes. No se debe bloquear la jornada.
@@ -121,7 +121,7 @@ export async function consultarRetardosRH({ personalNumber, fechaJornada, signal
         registrosDelEmpleadoYMes: matching.length,
       });
     }
-    throw Error("SAP devolvió registros de retardos que no corresponden de forma única al empleado y mes consultados.");
+    throw Error("No pudimos validar los retardos de este mes. Consulta con Recursos Humanos.");
   }
 
   const item = matching[0];

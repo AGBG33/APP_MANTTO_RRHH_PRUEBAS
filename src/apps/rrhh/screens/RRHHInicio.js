@@ -107,7 +107,7 @@
      const identidadAlInicio = identidad;
      const activar = !recordatoriosActivos;
      if (activar && (!policy?.habilitado || origenPerfil !== 'sap')) {
-       Alert.alert('Conéctate a SAP', 'Para activar recordatorios necesitamos validar primero el perfil y horario de esta cuenta en SAP.');
+       Alert.alert('Conéctate a internet', 'Para activar tus recordatorios, necesitamos verificar tu perfil y horario laboral.');
        return;
      }
      setCambiandoRecordatorios(true);
@@ -117,7 +117,7 @@
          const r = await activarRecordatoriosRH({ empleado: employee, email: correoCuenta, origenPerfil });
          if (identidadRecordatoriosRH(employee, correoCuenta) === identidadAlInicio) setRecordatoriosActivos(true);
          Alert.alert('Recordatorios activados',
-           `Se programaron ${r.programados} avisos para los próximos 7 días, según tu horario SAP. ` +
+           `Se programaron ${r.programados} avisos para los próximos 7 días, según tu horario laboral. ` +
            'Funcionarán sin internet y con la app cerrada, sujetos a los ajustes de Android.');
        } else {
          await desactivarRecordatoriosRH({ empleado: employee, email: correoCuenta });
@@ -164,7 +164,7 @@
          {modoConsultaOffline && <View style={s.connectionNotice} accessibilityLiveRegion="polite">
            <Ionicons name="cloud-offline-outline" size={17} color={C.amber}/>
            <Text style={s.connectionNoticeText}>
-             {sinInternet === true ? 'Sin conexión · Usando datos guardados' : 'Sin acceso a SAP · Usando datos guardados'}
+             {sinInternet === true ? 'Sin conexión · Usando datos guardados' : 'No se pudo actualizar la información · Usando datos guardados'}
            </Text>
          </View>}
          <View style={s.profile}>
@@ -229,10 +229,10 @@
              </Pressable>
            </View>}
            {recordatoriosActivos && <Text style={s.reminderCaption}>
-             Activados en este teléfono. Se actualizan al abrir la app, con el perfil SAP disponible. Cobertura de siete días.
+             Activados en este teléfono. Se actualizan al abrir la app, con tu perfil laboral actualizado. Cobertura de siete días.
            </Text>}
            {!recordatoriosActivos && modoConsultaOffline && <Text style={s.reminderCaption}>
-             Conéctate a SAP para activarlos por primera vez. Si ya estaban programados, siguen hasta su fecha.
+             Conéctate a internet para activarlos por primera vez. Si ya estaban programados, siguen hasta su fecha.
            </Text>}
            {!!errorRecordatorios && <Text style={s.reminderError}>{errorRecordatorios}</Text>}
          </View>}

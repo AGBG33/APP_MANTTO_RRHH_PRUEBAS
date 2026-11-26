@@ -105,7 +105,7 @@ function agruparJornadasDelMismoDia(filas) {
       if (!esHoraRegistrada(fila[campo])) continue;
       if (esHoraRegistrada(destino[campo]) && destino[campo] !== fila[campo]) {
         // Dos horas distintas no deben confirmarse arbitrariamente en pantalla.
-        throw Error("SAP devolvió dos horas diferentes para un mismo tipo de marcación y fecha. Requiere revisión RH.");
+        throw Error("Se encontraron horarios distintos para una misma marcación. Consulta con Recursos Humanos.");
       }
       destino[campo] = fila[campo];
     }
@@ -151,7 +151,7 @@ function extraerRespuesta(data) {
   if (Array.isArray(body?.results)) return { resultados: body.results, siguiente: body.__next || null };
   if (Array.isArray(data?.value)) return { resultados: data.value, siguiente: data["@odata.nextLink"] || null };
   if (Array.isArray(body)) return { resultados: body, siguiente: null };
-  throw Error("SAP devolvió un formato inesperado en AttendanceHistorySet.");
+  throw Error("No pudimos interpretar tu historial de asistencias.");
 }
 function paramsSiguiente(url) {
   // Nunca llamar al host interno de __next: extraer solo parámetros de página.
@@ -179,9 +179,9 @@ async function consultaFiltrada(filter, signal) {
     todas.push(...resultados);
     if (!siguiente) return todas;
     const otros = paramsSiguiente(siguiente);
-    if (!otros) throw Error("SAP devolvió una página de historial que no pudimos interpretar.");
+    if (!otros) throw Error("No pudimos interpretar una parte de tu historial de asistencias.");
     const firma = JSON.stringify(otros);
-    if (vistas.has(firma)) throw Error("SAP repitió una página del historial.");
+    if (vistas.has(firma)) throw Error("No pudimos completar la consulta del historial. Intenta nuevamente.");
     vistas.add(firma);
     params = { $filter: filter, $format: "json", ...otros };
   }

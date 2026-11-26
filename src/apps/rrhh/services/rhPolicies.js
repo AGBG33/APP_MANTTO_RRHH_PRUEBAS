@@ -53,7 +53,7 @@
  }
  function obtenerPatrones(scheduleDetail) {
    const original = String(scheduleDetail || "").trim();
-   if (!original) return { error: "SAP no devolvió ScheduleDetail.", sinHorario: true };
+   if (!original) return { error: "No hay un horario laboral disponible para este empleado.", sinHorario: true };
    const patrones = [];
    const expresion = new RegExp(`^\\s*${TOKEN}(?:\\s*-\\s*${TOKEN})?\\s+(\\d{1,2}:\\d{2})\\s*[-–—]\\s*(\\d{1,2}:\\d{2})\\s*$`, "i");
    for (const parte of original.split(/\s*[·;,|/]\s*/)) {
@@ -165,11 +165,11 @@
    } else if (sindicalizado && (relacion.homeOffice || relacion.viaje)) {
      // SAP asignó un estatus incompatible con las modalidades del grupo Y.
      // No cambiar de forma artificial a PR para evadir ese estatus especial.
-     razon = `El personal sindicalizado solo registra asistencia presencial (entrada y salida). SAP indica ${relacion.descripcion}; solicita la revisión del estatus a Recursos Humanos.`;
+     razon = `El personal sindicalizado solo registra asistencia presencial (entrada y salida). Tu estatus es ${relacion.descripcion}; solicita su revisión a Recursos Humanos.`;
    } else if (!activo) razon = `Empleado no activo: ${empleado?.descriptionStatus || empleado?.status || "sin estatus"}.`;
-   else if (!confianza && !sindicalizado) razon = "SAP no devolvió GroupPerson X o Y para este empleado.";
-   else if (soloBtp) razon = "Tu asistencia se registra mediante el monitor BTP; puedes consultar aquí tus datos e historial.";
-   else if (!canalApp) razon = "SAP no autorizó el registro de asistencia desde la aplicación. Consulta con Recursos Humanos.";
+   else if (!confianza && !sindicalizado) razon = "No pudimos identificar tu tipo de personal. Consulta con Recursos Humanos.";
+   else if (soloBtp) razon = "Tu asistencia se registra por otro medio. Puedes consultar aquí tus datos e historial.";
+   else if (!canalApp) razon = "No tienes habilitado el registro de asistencia desde la aplicación. Consulta con Recursos Humanos.";
    return { habilitado: !razon && activo && (confianza || sindicalizado) && canalApp,
      activo, grupo, confianza, sindicalizado, canal, canalApp, soloBtp, relacion, razon };
  }
@@ -186,7 +186,7 @@
  }
  export function codigoModalidadRH(modalidad) {
    const codigo = CODIGOS_MODALIDAD_RH[modalidad];
-   if (!codigo) throw new Error(`Falta confirmar en SAP el código TypeSession para ${modalidad}. No se enviará un código inventado.`);
+   if (!codigo) throw new Error(`No pudimos confirmar los datos de la modalidad ${modalidad}. Consulta con Recursos Humanos antes de registrar.`);
    return codigo;
  }
 
@@ -204,7 +204,7 @@
    const horarioRaw = String(empleado?.timeFoodSchedule ?? "").trim();
    const tiempoRaw = String(empleado?.timeFood ?? "").trim();
    const noDisponible = (detalle) => ({ valido: false,
-     mensaje: `No se pudo validar el horario de comida configurado en SAP (${detalle}). Contacta a Recursos Humanos.` });
+     mensaje: `No pudimos validar tu horario de comida (${detalle}). Contacta a Recursos Humanos.` });
 
    if (!horarioRaw) return noDisponible("falta TimeFoodSchedule");
    const rango = /^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?\s*[-–—]\s*(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/.exec(horarioRaw);
@@ -328,7 +328,7 @@
      return { permitido: false, mensaje: "Este registro ya fue enviado o sigue pendiente de verificar." };
    }
    if (confirmables.some(r => ["sending", "uncertain"].includes(r.sapState))) {
-     return { permitido: false, mensaje: "Hay una marcación sin confirmar. Revisa SAP antes de continuar." };
+     return { permitido: false, mensaje: "Hay una marcación pendiente de confirmación. Verifica su estado antes de continuar." };
    }
 
    if (tipo === "entrada") {
@@ -358,10 +358,10 @@
          mensaje: "Ya registraste inicio de comida en esta jornada." };
        if (horaSeg < comida.inicioSeg || horaSeg > comida.finSeg) {
          return { permitido: false, fueraDeVentanaComida: horaSeg > comida.finSeg,
-           mensaje: `El inicio de comida solo está permitido de ${comida.descripcion}, según SAP.` };
+           mensaje: `El inicio de comida solo está permitido de ${comida.descripcion}, según tu horario laboral.` };
        }
        return { permitido: true,
-         aviso: `Inicio de comida dentro del horario SAP (${comida.descripcion}). Tiempo asignado de referencia: ${comida.textoDuracion}.` };
+         aviso: `Inicio de comida dentro de tu horario laboral (${comida.descripcion}). Tiempo asignado de referencia: ${comida.textoDuracion}.` };
      }
 
      if (!inicioComida) return { permitido: false,
@@ -374,15 +374,15 @@
      if (momento < inicioMs) return { permitido: false,
        mensaje: "El inicio de comida todavía no ha ocurrido." };
      if (horaSeg < comida.inicioSeg) return { permitido: false,
-       mensaje: `El regreso de comida se habilita a las ${comida.textoInicio}, según SAP.` };
+       mensaje: `El regreso de comida se habilita a las ${comida.textoInicio}, según tu horario laboral.` };
      if (horaSeg > comida.finSeg) return { permitido: false, fueraDeVentanaComida: true,
-       mensaje: `El horario de comida terminó a las ${comida.textoFin}, según SAP. Solo puedes registrar la salida.` };
+       mensaje: `El horario de comida terminó a las ${comida.textoFin}, según tu horario laboral. Solo puedes registrar la salida.` };
      // TimeFood NO es un límite. Se permite regresar antes o después de esa
      // duración mientras el reloj siga dentro de TimeFoodSchedule.
      // Preservar P15/P25 con sus horas originales para medir el tiempo real.
      const duracionRealMin = Math.max(0, Math.floor((momento - inicioMs) / MINUTO));
      return { permitido: true, duracionRealMin,
-       aviso: `Regreso de comida dentro del horario SAP (${comida.descripcion}). Tiempo transcurrido: ${duracionRealMin} min. Tiempo asignado de referencia: ${comida.textoDuracion}.` };
+       aviso: `Regreso de comida dentro de tu horario laboral (${comida.descripcion}). Tiempo transcurrido: ${duracionRealMin} min. Tiempo asignado de referencia: ${comida.textoDuracion}.` };
    }
    if (tipo === "salida") {
      const despues = turno.valido && momento > turno.finMs;

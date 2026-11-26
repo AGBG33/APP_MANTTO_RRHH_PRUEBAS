@@ -264,7 +264,7 @@ export async function marcarEnviosInterrumpidosComoInciertosRH({ personalNumber,
   const resultado = await db.runAsync(`
     UPDATE rh_marcaciones_pendientes
     SET estado = 'incierto', actualizado_en = ?,
-        ultimo_error = 'Envio interrumpido: requiere conciliacion previa con SAP.'
+        ultimo_error = 'Envío interrumpido: es necesario verificar el historial antes de intentar reenviar.'
     WHERE usuario_clave = ? AND estado = 'enviando'
   `, [Date.now(), usuario]);
   return resultado.changes;

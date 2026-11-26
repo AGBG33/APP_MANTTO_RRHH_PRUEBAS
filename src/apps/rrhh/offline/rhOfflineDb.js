@@ -147,7 +147,7 @@ export async function guardarPerfilRHCache({ personalNumber, email, perfil }) {
   if (nominaCanonica(perfil.personalNumber) !== nominaCanonica(personalNumber) ||
       correoCanonico(perfil.email) !== correoCanonico(email) ||
       perfil.numeroConfirmadoEnSAP !== true) {
-    throw new Error("RRHH offline: perfil no confirmado para esta identidad SAP.");
+    throw new Error("No se pudo confirmar el perfil para esta cuenta. Inicia sesión nuevamente.");
   }
   const db = await iniciarBaseRHHOffline();
   const guardadoEn = Date.now();

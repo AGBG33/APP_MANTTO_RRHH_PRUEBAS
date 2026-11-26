@@ -59,9 +59,9 @@ export async function prepararMarcacionRH({ empleado, personalNumber, email, typ
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo) || correo.length > 241) {
     throw Error("Durante las pruebas debes ingresar un correo válido del empleado.");
   }
-  if (!String(empleado?.fullName || "").trim()) throw Error("No se encontró el nombre del empleado en SAP.");
+  if (!String(empleado?.fullName || "").trim()) throw Error("No pudimos obtener el nombre del empleado desde su perfil laboral.");
   if (empleado?.email && correo.toLowerCase() !== empleado.email.trim().toLowerCase()) {
-    throw Error("El correo ingresado no coincide con EmployeeSet.");
+    throw Error("El correo de tu sesión no coincide con tu información laboral. Consulta con Recursos Humanos.");
   }
   const instante = new Date();
   const evaluacion = evaluarMarcacionRH({ empleado, tipo: type, registros, ahora: instante, modalidad });
@@ -158,14 +158,14 @@ export async function enviarMarcacionRH(payload) {
     }, null, 2));
   }
 
-  if (response.status < 200 || response.status >= 300) throw Error(`SAP devolvió HTTP ${response.status}.`);
+  if (response.status < 200 || response.status >= 300) throw Error(`No pudimos confirmar el registro (código de respuesta: ${response.status}).`);
   const body = response?.data?.d ?? response?.data ?? {};
   const estado = String(body?.StatusReq ?? "").trim().toUpperCase();
   const mensaje = String(body?.Message ?? "").trim();
   const idLog = String(body?.Id_log ?? body?.IdLog ?? "").trim();
   // Solo confirmar éxito con estado de negocio OK, no únicamente con HTTP 2xx.
   if (response?.data?.error || estado !== "OK") {
-    const e = Error(mensaje || `SAP no confirmó el registro (StatusReq: ${estado || "vacío"}).`);
+    const e = Error(mensaje || `No se confirmó el registro (estado: ${estado || "sin información"}).`);
     e.sapRejected = !!estado && estado !== "OK";
     e.sapStatus = estado;
     e.sapMessage = mensaje;
